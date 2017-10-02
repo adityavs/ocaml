@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Structured output */
 
@@ -17,6 +21,7 @@
 
 #include <string.h>
 #include "caml/alloc.h"
+#include "caml/config.h"
 #include "caml/custom.h"
 #include "caml/fail.h"
 #include "caml/gc.h"
@@ -27,10 +32,6 @@
 #include "caml/misc.h"
 #include "caml/mlvalues.h"
 #include "caml/reverse.h"
-
-#ifdef _MSC_VER
-#define inline _inline
-#endif
 
 static uintnat obj_counter;  /* Number of objects emitted so far */
 static uintnat size_32;  /* Size in words of 32-bit block for struct. */
@@ -95,7 +96,6 @@ CAMLnoreturn_start
 static void extern_stack_overflow(void)
 CAMLnoreturn_end;
 
-static struct code_fragment * extern_find_code(char *addr);
 static void extern_replay_trail(void);
 static void free_extern_output(void);
 
@@ -103,7 +103,7 @@ static void free_extern_output(void);
 static void extern_free_stack(void)
 {
   if (extern_stack != extern_stack_init) {
-    free(extern_stack);
+    caml_stat_free(extern_stack);
     /* Reinitialize the globals for next time around */
     extern_stack = extern_stack_init;
     extern_stack_limit = extern_stack + EXTERN_STACK_INIT_SIZE;
@@ -118,13 +118,13 @@ static struct extern_item * extern_resize_stack(struct extern_item * sp)
 
   if (newsize >= EXTERN_STACK_MAX_SIZE) extern_stack_overflow();
   if (extern_stack == extern_stack_init) {
-    newstack = malloc(sizeof(struct extern_item) * newsize);
+    newstack = caml_stat_alloc_noexc(sizeof(struct extern_item) * newsize);
     if (newstack == NULL) extern_stack_overflow();
     memcpy(newstack, extern_stack_init,
            sizeof(struct extern_item) * EXTERN_STACK_INIT_SIZE);
   } else {
-    newstack =
-      realloc(extern_stack, sizeof(struct extern_item) * newsize);
+    newstack = caml_stat_resize_noexc(extern_stack,
+                                      sizeof(struct extern_item) * newsize);
     if (newstack == NULL) extern_stack_overflow();
   }
   extern_stack = newstack;
@@ -161,7 +161,7 @@ static void extern_replay_trail(void)
     }
     if (blk == &extern_trail_first) break;
     prevblk = blk->previous;
-    free(blk);
+    caml_stat_free(blk);
     blk = prevblk;
     lim = &(blk->entries[ENTRIES_PER_TRAIL_BLOCK]);
   }
@@ -179,7 +179,7 @@ static void extern_record_location(value obj)
 
   if (extern_flags & NO_SHARING) return;
   if (extern_trail_cur == extern_trail_limit) {
-    struct trail_block * new_block = malloc(sizeof(struct trail_block));
+    struct trail_block * new_block = caml_stat_alloc_noexc(sizeof(struct trail_block));
     if (new_block == NULL) extern_out_of_memory();
     new_block->previous = extern_trail_block;
     extern_trail_block = new_block;
@@ -211,7 +211,7 @@ static struct output_block * extern_output_first, * extern_output_block;
 static void init_extern_output(void)
 {
   extern_userprovided_output = NULL;
-  extern_output_first = malloc(sizeof(struct output_block));
+  extern_output_first = caml_stat_alloc_noexc(sizeof(struct output_block));
   if (extern_output_first == NULL) caml_raise_out_of_memory();
   extern_output_block = extern_output_first;
   extern_output_block->next = NULL;
@@ -233,7 +233,7 @@ static void free_extern_output(void)
   if (extern_userprovided_output != NULL) return;
   for (blk = extern_output_first; blk != NULL; blk = nextblk) {
     nextblk = blk->next;
-    free(blk);
+    caml_stat_free(blk);
   }
   extern_output_first = NULL;
   extern_free_stack();
@@ -252,7 +252,7 @@ static void grow_extern_output(intnat required)
     extra = 0;
   else
     extra = required;
-  blk = malloc(sizeof(struct output_block) + extra);
+  blk = caml_stat_alloc_noexc(sizeof(struct output_block) + extra);
   if (blk == NULL) extern_out_of_memory();
   extern_output_block->next = blk;
   extern_output_block = blk;
@@ -300,7 +300,7 @@ static void extern_failwith(char *msg)
 
 static void extern_stack_overflow(void)
 {
-  caml_gc_message (0x04, "Stack overflow in marshaling value\n", 0);
+  caml_gc_message (0x04, "Stack overflow in marshaling value\n");
   extern_replay_trail();
   free_extern_output();
   caml_raise_out_of_memory();
@@ -332,17 +332,17 @@ static inline void write(int c)
   *extern_ptr++ = c;
 }
 
-static void writeblock(char * data, intnat len)
+static void writeblock(const char * data, intnat len)
 {
   if (extern_ptr + len > extern_limit) grow_extern_output(len);
   memcpy(extern_ptr, data, len);
   extern_ptr += len;
 }
 
-static inline void writeblock_float8(double * data, intnat ndoubles)
+static inline void writeblock_float8(const double * data, intnat ndoubles)
 {
 #if ARCH_FLOAT_ENDIANNESS == 0x01234567 || ARCH_FLOAT_ENDIANNESS == 0x76543210
-  writeblock((char *) data, ndoubles * 8);
+  writeblock((const char *) data, ndoubles * 8);
 #else
   caml_serialize_block_float_8(data, ndoubles);
 #endif
@@ -384,6 +384,8 @@ static void writecode64(int code, intnat val)
 
 /* Marshal the given value in the output buffer */
 
+int caml_extern_allow_out_of_heap = 0;
+
 static void extern_rec(value v)
 {
   struct code_fragment * cf;
@@ -410,7 +412,7 @@ static void extern_rec(value v)
       writecode32(CODE_INT32, n);
     goto next_item;
   }
-  if (Is_in_value_area(v)) {
+  if (Is_in_value_area(v) || caml_extern_allow_out_of_heap) {
     header_t hd = Hd_val(v);
     tag_t tag = Tag_hd(hd);
     mlsize_t sz = Wosize_hd(hd);
@@ -419,7 +421,11 @@ static void extern_rec(value v)
       value f = Forward_val (v);
       if (Is_block (f)
           && (!Is_in_value_area(f) || Tag_val (f) == Forward_tag
-              || Tag_val (f) == Lazy_tag || Tag_val (f) == Double_tag)){
+              || Tag_val (f) == Lazy_tag
+#ifdef FLAT_FLOAT_ARRAY
+              || Tag_val (f) == Double_tag
+#endif
+              )){
         /* Do not short-circuit the pointer. */
       }else{
         v = f;
@@ -432,7 +438,11 @@ static void extern_rec(value v)
       if (tag < 16) {
         write(PREFIX_SMALL_BLOCK + tag);
       } else {
+#ifdef WITH_PROFINFO
+        writecode32(CODE_BLOCK32, Hd_no_profinfo(hd));
+#else
         writecode32(CODE_BLOCK32, hd);
+#endif
       }
       goto next_item;
     }
@@ -545,13 +555,18 @@ static void extern_rec(value v)
         write(PREFIX_SMALL_BLOCK + tag + (sz << 4));
       } else {
 #ifdef ARCH_SIXTYFOUR
+#ifdef WITH_PROFINFO
+        header_t hd_erased = Hd_no_profinfo(hd);
+#else
+        header_t hd_erased = hd;
+#endif
         if (sz > 0x3FFFFF && (extern_flags & COMPAT_32))
           extern_failwith("output_value: array cannot be read back on "
                           "32-bit platform");
-        if (hd < (uintnat)1 << 32)
-          writecode32(CODE_BLOCK32, Whitehd_hd (hd));
+        if (hd_erased < (uintnat)1 << 32)
+          writecode32(CODE_BLOCK32, Whitehd_hd (hd_erased));
         else
-          writecode64(CODE_BLOCK64, Whitehd_hd (hd));
+          writecode64(CODE_BLOCK64, Whitehd_hd (hd_erased));
 #else
         writecode32(CODE_BLOCK32, Whitehd_hd (hd));
 #endif
@@ -573,11 +588,11 @@ static void extern_rec(value v)
     }
     }
   }
-  else if ((cf = extern_find_code((char *) v)) != NULL) {
+  else if ((cf = caml_extern_find_code((char *) v)) != NULL) {
     if ((extern_flags & CLOSURES) == 0)
       extern_invalid_argument("output_value: functional value");
     writecode32(CODE_CODEPOINTER, (char *) v - cf->code_start);
-    writeblock((char *) cf->digest, 16);
+    writeblock((const char *)cf->digest, 16);
   } else {
     extern_invalid_argument("output_value: abstract value (outside heap)");
   }
@@ -663,7 +678,7 @@ void caml_output_val(struct channel *chan, value v, value flags)
   while (blk != NULL) {
     caml_really_putblock(chan, blk->data, blk->end - blk->data);
     nextblk = blk->next;
-    free(blk);
+    caml_stat_free(blk);
     blk = nextblk;
   }
 }
@@ -701,7 +716,7 @@ CAMLprim value caml_output_value_to_string(value v, value flags)
     memcpy(&Byte(res, ofs), blk->data, n);
     ofs += n;
     nextblk = blk->next;
-    free(blk);
+    caml_stat_free(blk);
     blk = nextblk;
   }
   return res;
@@ -713,14 +728,14 @@ CAMLexport intnat caml_output_value_to_block(value v, value flags,
   char header[32];
   int header_len;
   intnat data_len;
-  /* At this point we don't know the size of the header.  
+  /* At this point we don't know the size of the header.
      Guess that it is small, and fix up later if not. */
   extern_userprovided_output = buf + 20;
   extern_ptr = extern_userprovided_output;
   extern_limit = buf + len;
   data_len = extern_value(v, flags, header, &header_len);
   if (header_len != 20) {
-    /* Bad guess!  Need to shift the output to make room for big header. 
+    /* Bad guess!  Need to shift the output to make room for big header.
        Make sure there is room. */
     if (header_len + data_len > len)
       caml_failwith("Marshal.to_buffer: buffer overflow");
@@ -742,7 +757,7 @@ CAMLprim value caml_output_value_to_buffer(value buf, value ofs, value len,
 CAMLexport void caml_output_value_to_malloc(value v, value flags,
                                             /*out*/ char ** buf,
                                             /*out*/ intnat * len)
-{ 
+{
   char header[32];
   int header_len;
   intnat data_len;
@@ -751,7 +766,7 @@ CAMLexport void caml_output_value_to_malloc(value v, value flags,
 
   init_extern_output();
   data_len = extern_value(v, flags, header, &header_len);
-  res = malloc(header_len + data_len);
+  res = caml_stat_alloc_noexc(header_len + data_len);
   if (res == NULL) extern_out_of_memory();
   *buf = res;
   *len = header_len + data_len;
@@ -890,7 +905,7 @@ CAMLexport void caml_serialize_block_float_8(void * data, intnat len)
 
 /* Find where a code pointer comes from */
 
-static struct code_fragment * extern_find_code(char *addr)
+CAMLexport struct code_fragment * caml_extern_find_code(char *addr)
 {
   int i;
   for (i = caml_code_fragments_table.size - 1; i >= 0; i--) {

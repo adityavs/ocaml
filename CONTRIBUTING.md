@@ -7,9 +7,15 @@ OCaml distribution. These are just guidelines, not rules, use your
 best judgment and feel free to propose changes to this document itself
 in a pull request.
 
+This document assumes that you have a patch against the sources of the
+compiler distribution, that you wish to submit to the OCaml
+maintainers upstream. See [INSTALL.adoc](INSTALL.adoc) for details on
+how to build the compiler distribution from sources. See
+[HACKING.adoc](HACKING.adoc) for details on how to modify the sources.
+
 ## Contribution
 
-Adding or modifying code is far from the only way to contribute to the
+Modifying its sources is far from the only way to contribute to the
 OCaml distribution. Bug reports (in particular when they come with
 a reproducible example), simple typos or clarifications in the
 documentation also help, and help evaluating and integrating existing
@@ -18,8 +24,8 @@ forums, or asking the good questions that highlight deficiencies in
 existing documentations, also help. We currently have more
 contributors willing to propose changes than contributors willing to
 review other people's changes, so more eyes on the existing change
-requests is a good way to increase the integration bandwidth of external
-contributions.
+requests is a good way to increase the integration bandwidth of
+external contributions.
 
 There are also many valuable ways to contribute to the wider OCaml
 ecosystem that do not involve changes to the OCaml distribution.
@@ -28,6 +34,30 @@ The rest of the document is concerned with the form of change
 proposals against the OCaml distribution. (Code changes, but also
 improvement to documentation or implementation comments, which are
 valuable changes on their own.)
+
+## Workflow
+
+All changes to the OCaml distribution need to be processed through the
+GitHub Pull Request (PR) system.  In order to propose a change, a
+contributor thus needs to have a GitHub account, fork the ocaml/ocaml
+repository, create a branch for the proposal on their fork and submit
+it as a Pull Request on the upstream repository.  (If you are not yet
+familiar with GitHub, don't worry, all these steps are actually quite
+easy!)
+
+The current rule is that a PR needs to get an explicit approval from
+one of the core maintainer in order to be merged.  Reviews by
+external contributors are very much appreciated.
+
+Since core maintainers cannot push directly without going through an
+approved PR, they need to be able to apply small changes to the
+contributed branches themselves.  Such changes include fixing
+conflicts, adjusting a Changelog entry, or applying some code changes
+required by the reviewers.  Contributors are thus strongly advised to
+check the [**Allow edits from maintainer**](https://help.github.com/articles/allowing-changes-to-a-pull-request-branch-created-from-a-fork/)
+flag on their PRs in the GitHub interface.  Failing to do so might
+significantly delay the inclusion of an otherwise perfectly ok
+contribution.
 
 
 ## Coding guidelines
@@ -142,10 +172,9 @@ better than adding redundant explanations.)
 Changes affecting the compiler libraries should be reflected in the
 documentation comments of the relevant `.mli` files.
 
-For changes affecting the OCaml Reference Manual (in particular any
-change in the surface language), you should also prepare a merge
-request against the manual repository,
-<https://github.com/ocaml/ocaml-manual>.
+It is recommended to included changes to the OCaml Reference Manual
+(in particular for any change in the surface language), which is now
+part of the main repository (under `manual/`).
 
 Finally, changes in command-line options should be integrated in the
 manual, but also in the man pages present in the `man/` sub-directory
@@ -153,7 +182,7 @@ of the OCaml distribution.
 
 ### Changelog
 
-Any user-visible change should have a Changelog entry:
+Any user-visible change should have a `Changes` entry:
 
 - in the right section (named sections if major feature, generic
   "Bug fixes" and "Feature requests" otherwise)
@@ -164,18 +193,17 @@ Any user-visible change should have a Changelog entry:
   (several numbers separated by commas can be used)
 
 - maintaining the order: each section lists Mantis PRs first in ascending
-  numerical order, followed by Github PRs
+  numerical order, followed by Github PRs in ascending numerical order,
+  followed by changes that are not related to a PR.
 
 - with a concise readable description of the change (possibly taken
   from a commit message, but it should make sense to end-users
   reading release notes)
 
-- crediting the people that worked on the feature
-
-      The people that wrote the code should be credited of course,
-      but also substantial code reviews or design advice, and the
-      reporter of the bug (if applicable) or designer of the
-      feature request (if novel).
+- crediting the people that worked on the feature. The people that
+  wrote the code should be credited of course, but also substantial
+  code reviews or design advice, and the reporter of the bug
+  (if applicable) or designer of the feature request (if novel).
 
 - following the format
 
@@ -254,6 +282,54 @@ log -u` to make sure the rebase patches make sense), but:
   changes, or an un-testable intermediary state) is a sure way to
   generate ill will.
 
+## Contributing to the standard library
+
+Contributions to the standard library are very welcome.  There is some
+widespread belief in the community than the stdlib is somehow "frozen"
+and that its evolutions are mostly driven by the need of the OCaml
+compiler itself.  Let's be clear: this is just plain wrong. The
+compiler is happy with its own local utility functions, and many
+recent additions to the stdlib are not used by the compiler.
+
+Another common and wrong idea is that core OCaml maintainers don't
+really care about the standard library.  This is not true, and won't
+be unless one of the "alternative standard" libraries really gains
+enough "market share" in the community.
+
+So: please contribute!
+
+Obviously, the proposals to evolve the standard library will be
+evaluated with very high standards, similar to those applied to the
+evolution of the surface langage, and much higher than those for
+internal compiler changes (optimizations, etc).
+
+A key property of the standard library is its stability.  Backward
+compatibility is not an absolute technical requirement (any addition
+to/of a module can break existing code, formally), but breakage should
+be limited as much as possible (and assessed, when relevant).  A
+corollary is that any addition creates a long-term support commitment.
+For instance, once a concrete type or function is made public,
+changing the exposed definition cannot be done easily.
+
+There is no plan to extend dramatically the functional domain covered
+by the standard library.  For instance, proposals to include support
+for XML, JSON, or network protocols are very likely to be rejected.  Such
+domains are better treated by external libraries.  Small additions to
+existing modules are much simpler to get in, even more so (but not
+necessarily) when:
+
+  - they cannot easily be implemented externally, or when
+  - they facilitate communication between independent external
+    libraries, or when
+  - they fill obvious gaps.
+
+Of course, standard guidelines apply as well: proper documentation,
+proper tests, portability (yes, also Windows!), good justification for
+why the change is desirable and why it should go into stdlib.
+
+So: be prepared for some serious review process!  But yes, yes,
+contributions are welcome and appreciated.  Promised.
+
 
 ## Contributor License Agreement
 
@@ -291,3 +367,15 @@ contribution.
 This ability to re-license allows INRIA to provide members of the
 [Caml Consortium](http://caml.inria.fr/consortium/) with a license on
 the Caml code base that is more permissive than the public license.
+
+### How to sign the CLA
+
+If your contribution is large enough, you should sign the CLA. If you
+are contributing on your own behalf, you should sign [the individual
+CLA](http://caml.inria.fr/pub/docs/CLA-individual.doc). For corporate
+contributions, if your employer has not already done so, they should
+sign [the corporate
+CLA](http://caml.inria.fr/pub/docs/CLA-corporate.doc). Review the CLA,
+sign it, and send it -- scanned PDF by email, or postail mail -- to
+Xavier Leroy ([contact
+info](http://gallium.inria.fr/%7Exleroy/contact.html)).

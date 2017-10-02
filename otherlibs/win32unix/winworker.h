@@ -1,26 +1,29 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*  Contributed by Sylvain Le Gall for Lexifi                          */
-/*                                                                     */
-/*  Copyright 2008 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../../LICENSE.  */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*   Contributed by Sylvain Le Gall for Lexifi                            */
+/*                                                                        */
+/*   Copyright 2008 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #ifndef _WINWORKER_H
 #define _WINWORKER_H
 
+#undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0400
 #include "unixsupport.h"
 #include <windows.h>
 
 /* Pool of worker threads.
  *
- * These functions help to manage a pool of worker thread and submit task to
+ * These functions help to manage a pool of worker threads and submit task to
  * the pool. It helps to reduce the number of thread creation.
  *
  * Each worker are started in alertable wait state and jobs are submitted as
@@ -37,7 +40,7 @@ typedef WORKER *LPWORKER;
  * This function will be called using the data following:
  * - hStop must be watched for change, since it represents an external command
  *   to stop the call. This event is shared through the WORKER structure, which
- *   can be access throuhg worker_job_event_done.
+ *   can be accessed through worker_job_event_done.
  * - data is user provided data for the function.
  */
 typedef void (*WORKERFUNC) (HANDLE, void *);

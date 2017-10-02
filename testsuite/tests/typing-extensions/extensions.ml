@@ -1,3 +1,5 @@
+(* Ignore OCAMLRUNPARAM=b to be reproducible *)
+Printexc.record_backtrace false;;
 
 type foo = ..
 ;;
@@ -21,6 +23,14 @@ type foo
 type foo += A of int (* Error type is not open *)
 ;;
 
+(* The type must be public to create extension *)
+
+type foo = private ..
+;;
+
+type foo += A of int (* Error type is private *)
+;;
+
 (* The type parameters must match *)
 
 type 'a foo = ..
@@ -29,11 +39,11 @@ type 'a foo = ..
 type ('a, 'b) foo += A of int (* Error: type parameter mismatch *)
 ;;
 
-(* In a signature the type does not have to be open *)
+(* In a signature the type can be private *)
 
 module type S =
 sig
-  type foo
+  type foo = private ..
   type foo += A of float
 end
 ;;
@@ -42,8 +52,8 @@ end
 
 module type S =
 sig
-  type foo = A of int
-  type foo += B of float (* Error foo does not have an extensible type *)
+  type foo
+  type foo += B of float (* Error: foo does not have an extensible type *)
 end
 ;;
 
@@ -162,9 +172,9 @@ type foo += B3 = M.B1  (* Error: rebind private extension *)
 type foo += C = Unknown  (* Error: unbound extension *)
 ;;
 
-(* Extensions can be rebound even if type is closed *)
+(* Extensions can be rebound even if type is private *)
 
-module M : sig type foo type foo += A1 of int end
+module M : sig type foo = private .. type foo += A1 of int end
   = struct type foo = .. type foo += A1 of int end
 
 type M.foo += A2 = M.A1
@@ -296,19 +306,22 @@ type foo +=
   | Bar of int
 ;;
 
-let n1 = Obj.extension_name Foo
+let extension_name e = Obj.extension_name (Obj.extension_constructor e);;
+let extension_id e = Obj.extension_id (Obj.extension_constructor e);;
+
+let n1 = extension_name Foo
 ;;
 
-let n2 = Obj.extension_name (Bar 1)
+let n2 = extension_name (Bar 1)
 ;;
 
-let t = (Obj.extension_id (Bar 2)) = (Obj.extension_id (Bar 3)) (* true *)
+let t = (extension_id (Bar 2)) = (extension_id (Bar 3)) (* true *)
 ;;
 
-let f = (Obj.extension_id (Bar 2)) = (Obj.extension_id Foo) (* false *)
+let f = (extension_id (Bar 2)) = (extension_id Foo) (* false *)
 ;;
 
-let is_foo x = (Obj.extension_id Foo) = (Obj.extension_id x)
+let is_foo x = (extension_id Foo) = (extension_id x)
 
 type foo += Foo
 ;;
@@ -316,8 +329,8 @@ type foo += Foo
 let f = is_foo Foo
 ;;
 
-let _ = Obj.extension_name 7 (* Invald_arg *)
+let _ = Obj.extension_constructor 7 (* Invald_arg *)
 ;;
 
-let _ = Obj.extension_id (object method m = 3 end) (* Invald_arg *)
+let _ = Obj.extension_constructor (object method m = 3 end) (* Invald_arg *)
 ;;

@@ -1,15 +1,3 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
-
 type peg = Out | Empty | Peg
 
 let board = [|
@@ -47,7 +35,7 @@ let dir = [| {dx = 0; dy = 1}; {dx = 1; dy = 0};
 
 type move = { x1: int; y1: int; x2: int; y2: int }
 
-let moves = Array.create 31 {x1=0;y1=0;x2=0;y2=0}
+let moves = Array.make 31 {x1=0;y1=0;x2=0;y2=0}
 
 let counter = ref 0
 

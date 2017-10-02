@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Luc Maranget, projet Moscova, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 2000 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Luc Maranget, projet Moscova, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 2000 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 
 type 'a shared = Shared of 'a | Single of 'a
@@ -24,12 +27,13 @@ exception Not_simple
 module type Stored = sig
   type t
   type key
+  val compare_key : key -> key -> int
   val make_key : t -> key option
 end
 
 module Store(A:Stored) = struct
   module AMap =
-    Map.Make(struct type t = A.key let compare = Pervasives.compare end)
+    Map.Make(struct type t = A.key let compare = A.compare_key end)
 
   type intern =
       { mutable map : (bool * int)  AMap.t ;
@@ -102,7 +106,7 @@ module type S =
    val make_isout : act -> act -> act
    val make_isin : act -> act -> act
    val make_if : act -> act -> act -> act
-   val make_switch : act -> int array -> act array -> act
+   val make_switch : Location.t -> act -> int array -> act array -> act
    val make_catch : act -> int * (act -> act)
    val make_exit : int -> act
  end
@@ -355,7 +359,7 @@ let make_key  cases =
 
 
 (*
-  Intervall test x in [l,h] works by checking x-l in [0,h-l]
+  Interval test x in [l,h] works by checking x-l in [0,h-l]
    * This may be false for arithmetic modulo 2^31
    * Subtracting l may change the relative ordering of values
      and invalid the invariant that matched values are given in
@@ -375,8 +379,7 @@ let ok_inter = ref false
 let rec opt_count top cases =
   let key = make_key cases in
   try
-    let r = Hashtbl.find t key in
-    r
+    Hashtbl.find t key
   with
   | Not_found ->
       let r =
@@ -388,13 +391,13 @@ let rec opt_count top cases =
             if lcases < !cut then
               enum top cases
             else if lcases < !more_cut then
-              heuristic top cases
+              heuristic cases
             else
-              divide top cases in
+              divide cases in
       Hashtbl.add t key r ;
       r
 
-and divide top cases =
+and divide cases =
   let lcases = Array.length cases in
   let m = lcases/2 in
   let _,left,right = coupe cases m in
@@ -410,10 +413,10 @@ and divide top cases =
     add_test cm cml ;
   Sep m,(cm, ci)
 
-and heuristic top cases =
+and heuristic cases =
   let lcases = Array.length cases in
 
-  let sep,csep = divide false cases
+  let sep,csep = divide cases
 
   and inter,cinter =
     if !ok_inter then begin
@@ -587,7 +590,7 @@ and enum top cases =
 
       else begin
 
-        let w,c = opt_count false cases in
+        let w,_c = opt_count false cases in
 (*
   Printf.fprintf stderr
   "off=%d tactic=%a for %a\n"
@@ -656,19 +659,19 @@ and enum top cases =
 (* Minimal density of switches *)
 let theta = ref 0.33333
 
-(* Minmal number of tests to make a switch *)
+(* Minimal number of tests to make a switch *)
 let switch_min = ref 3
 
 (* Particular case 0, 1, 2 *)
 let particular_case cases i j =
   j-i = 2 &&
-  (let l1,h1,act1 = cases.(i)
-  and  l2,h2,act2 = cases.(i+1)
+  (let l1,_h1,act1 = cases.(i)
+  and  l2,_h2,_act2 = cases.(i+1)
   and  l3,h3,act3 = cases.(i+2) in
   l1+1=l2 && l2+1=l3 && l3=h3 &&
   act1 <> act3)
 
-let approx_count cases i j n_actions =
+let approx_count cases i j =
   let l = j-i+1 in
   if l < !cut then
      let _,(_,{n=ntests}) = opt_count false (Array.sub cases i l) in
@@ -678,12 +681,12 @@ let approx_count cases i j n_actions =
 
 (* Sends back a boolean that says whether is switch is worth or not *)
 
-let dense {cases=cases ; actions=actions} i j =
+let dense {cases} i j =
   if i=j then true
   else
     let l,_,_ = cases.(i)
     and _,h,_ = cases.(j) in
-    let ntests =  approx_count cases i j (Array.length actions) in
+    let ntests =  approx_count cases i j in
 (*
   (ntests+1) >= theta * (h-l+1)
 *)
@@ -696,11 +699,11 @@ let dense {cases=cases ; actions=actions} i j =
    Adaptation of the correction to Bernstein
    ``Correction to `Producing Good Code for the Case Statement' ''
    S.K. Kannan and T.A. Proebsting
-   Software Practice and Exprience Vol. 24(2) 233 (Feb 1994)
+   Software Practice and Experience Vol. 24(2) 233 (Feb 1994)
 *)
 
-let comp_clusters ({cases=cases ; actions=actions} as s) =
-  let len = Array.length cases in
+let comp_clusters s =
+  let len = Array.length s.cases in
   let min_clusters = Array.make len max_int
   and k = Array.make len 0 in
   let get_min i = if i < 0 then 0 else min_clusters.(i) in
@@ -719,7 +722,7 @@ let comp_clusters ({cases=cases ; actions=actions} as s) =
   min_clusters.(len-1),k
 
 (* Assume j > i *)
-let make_switch  {cases=cases ; actions=actions} i j =
+let make_switch loc {cases=cases ; actions=actions} i j =
   let ll,_,_ = cases.(i)
   and _,hh,_ = cases.(j) in
   let tbl = Array.make (hh-ll+1) 0
@@ -748,14 +751,14 @@ let make_switch  {cases=cases ; actions=actions} i j =
     t ;
   (fun ctx ->
     match -ll-ctx.off with
-    | 0 -> Arg.make_switch ctx.arg tbl acts
+    | 0 -> Arg.make_switch loc ctx.arg tbl acts
     | _ ->
         Arg.bind
           (Arg.make_offset ctx.arg (-ll-ctx.off))
-          (fun arg -> Arg.make_switch arg tbl acts))
+          (fun arg -> Arg.make_switch loc arg tbl acts))
 
 
-let make_clusters ({cases=cases ; actions=actions} as s) n_clusters k =
+let make_clusters loc ({cases=cases ; actions=actions} as s) n_clusters k =
   let len = Array.length cases in
   let r = Array.make n_clusters (0,0,0)
   and t = Hashtbl.create 17
@@ -788,7 +791,7 @@ let make_clusters ({cases=cases ; actions=actions} as s) n_clusters k =
     else (* assert i < j *)
       let l,_,_ = cases.(i)
       and _,h,_ = cases.(j) in
-      r.(ir) <- (l,h,add_index (make_switch s i j))
+      r.(ir) <- (l,h,add_index (make_switch loc s i j))
     end ;
     if i > 0 then zyva (i-1) (ir-1) in
 
@@ -799,7 +802,7 @@ let make_clusters ({cases=cases ; actions=actions} as s) n_clusters k =
 ;;
 
 
-let do_zyva (low,high) arg cases actions =
+let do_zyva loc (low,high) arg cases actions =
   let old_ok = !ok_inter in
   ok_inter := (abs low <= inter_limit && abs high <= inter_limit) ;
   if !ok_inter <> old_ok then Hashtbl.clear t ;
@@ -807,14 +810,13 @@ let do_zyva (low,high) arg cases actions =
   let s = {cases=cases ; actions=actions} in
 
 (*
-  Printf.eprintf "ZYVA: %b [low=%i,high=%i]\n" !ok_inter low high ;
+  Printf.eprintf "ZYVA: %B [low=%i,high=%i]\n" !ok_inter low high ;
   pcases stderr cases ;
   prerr_endline "" ;
 *)
   let n_clusters,k = comp_clusters s in
-  let clusters = make_clusters s n_clusters k in
-  let r = c_test {arg=arg ; off=0} clusters in
-  r
+  let clusters = make_clusters loc s n_clusters k in
+  c_test {arg=arg ; off=0} clusters
 
 let abstract_shared actions =
   let handlers = ref (fun x -> x) in
@@ -830,11 +832,11 @@ let abstract_shared actions =
       actions in
   !handlers,actions
 
-let zyva lh arg cases actions =
+let zyva loc lh arg cases actions =
   assert (Array.length cases > 0) ;
   let actions = actions.act_get_shared () in
   let hs,actions = abstract_shared actions in
-  hs (do_zyva lh arg cases actions)
+  hs (do_zyva loc lh arg cases actions)
 
 and test_sequence arg cases actions =
   assert (Array.length cases > 0) ;
@@ -847,7 +849,7 @@ and test_sequence arg cases actions =
     {cases=cases ;
     actions=Array.map (fun act -> (fun _ -> act)) actions} in
 (*
-  Printf.eprintf "SEQUENCE: %b\n" !ok_inter ;
+  Printf.eprintf "SEQUENCE: %B\n" !ok_inter ;
   pcases stderr cases ;
   prerr_endline "" ;
 *)

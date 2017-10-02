@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Representation of types and declarations *)
 
@@ -19,7 +22,7 @@ open Asttypes
 type type_expr =
   { mutable desc: type_desc;
     mutable level: int;
-    mutable id: int }
+    id: int }
 
 and type_desc =
     Tvar of string option
@@ -145,6 +148,8 @@ type type_declaration =
     type_newtype_level: (int * int) option;
     type_loc: Location.t;
     type_attributes: Parsetree.attributes;
+    type_immediate: bool;
+    type_unboxed: unboxed_status;
  }
 
 and type_kind =
@@ -156,6 +161,7 @@ and type_kind =
 and record_representation =
     Record_regular                      (* All fields are boxed / tagged *)
   | Record_float                        (* All fields are floats *)
+  | Record_unboxed of bool    (* Unboxed single-field record, inlined or not *)
   | Record_inlined of int               (* Inlined record *)
   | Record_extension                    (* Inlined record under extension *)
 
@@ -180,6 +186,17 @@ and constructor_declaration =
 and constructor_arguments =
   | Cstr_tuple of type_expr list
   | Cstr_record of label_declaration list
+
+and unboxed_status =
+  {
+    unboxed: bool;
+    default: bool; (* False if the unboxed field was set from an attribute. *)
+  }
+
+let unboxed_false_default_false = {unboxed = false; default = false}
+let unboxed_false_default_true = {unboxed = false; default = true}
+let unboxed_true_default_false = {unboxed = true; default = false}
+let unboxed_true_default_true = {unboxed = true; default = true}
 
 type extension_constructor =
     { ext_type_path: Path.t;
@@ -236,7 +253,11 @@ type module_type =
     Mty_ident of Path.t
   | Mty_signature of signature
   | Mty_functor of Ident.t * module_type option * module_type
-  | Mty_alias of Path.t
+  | Mty_alias of alias_presence * Path.t
+
+and alias_presence =
+  | Mta_present
+  | Mta_absent
 
 and signature = signature_item list
 
@@ -258,7 +279,7 @@ and module_declaration =
 
 and modtype_declaration =
   {
-    mtd_type: module_type option;  (* Nonte: abstract *)
+    mtd_type: module_type option;  (* Note: abstract *)
     mtd_attributes: Parsetree.attributes;
     mtd_loc: Location.t;
   }
@@ -297,8 +318,18 @@ type constructor_description =
 and constructor_tag =
     Cstr_constant of int                (* Constant constructor (an int) *)
   | Cstr_block of int                   (* Regular constructor (a block) *)
+  | Cstr_unboxed                        (* Constructor of an unboxed type *)
   | Cstr_extension of Path.t * bool     (* Extension constructor
                                            true if a constant false if a block*)
+
+let equal_tag t1 t2 = 
+  match (t1, t2) with
+  | Cstr_constant i1, Cstr_constant i2 -> i2 = i1
+  | Cstr_block i1, Cstr_block i2 -> i2 = i1
+  | Cstr_unboxed, Cstr_unboxed -> true
+  | Cstr_extension (path1, b1), Cstr_extension (path2, b2) -> 
+      Path.same path1 path2 && b1 = b2
+  | (Cstr_constant _|Cstr_block _|Cstr_unboxed|Cstr_extension _), _ -> false
 
 type label_description =
   { lbl_name: string;                   (* Short name *)

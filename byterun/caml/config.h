@@ -1,25 +1,29 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*         Xavier Leroy and Damien Doligez, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*          Xavier Leroy and Damien Doligez, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #ifndef CAML_CONFIG_H
 #define CAML_CONFIG_H
 
-/* <include ../config/m.h> */
-/* <include ../config/s.h> */
+/* <include m.h> */
+/* <include s.h> */
 /* <private> */
-#include "../../config/m.h"
-#include "../../config/s.h"
-/* </private> */
+#include "m.h"
+#include "s.h"
+#ifdef BOOTSTRAPPING_FLEXLINK
+#undef SUPPORT_DYNAMIC_LINKING
+#endif
 
 #ifndef CAML_NAME_SPACE
 #include "compatibility.h"
@@ -27,6 +31,18 @@
 
 #ifdef HAS_STDINT_H
 #include <stdint.h>
+#endif
+
+#ifndef ARCH_SIZET_PRINTF_FORMAT
+#define ARCH_SIZET_PRINTF_FORMAT "z"
+#endif
+
+/* Types for Windows wide strings */
+
+#ifdef _WIN32
+#define ARCH_CHARNATSTR_PRINTF_FORMAT "S"
+#else
+#define ARCH_CHARNATSTR_PRINTF_FORMAT "s"
 #endif
 
 /* Types for 32-bit integers, 64-bit integers, and
@@ -51,14 +67,14 @@
 #endif
 
 #ifndef ARCH_INT64_TYPE
-#if SIZEOF_LONGLONG == 8
-#define ARCH_INT64_TYPE long long
-#define ARCH_UINT64_TYPE unsigned long long
-#define ARCH_INT64_PRINTF_FORMAT "ll"
-#elif SIZEOF_LONG == 8
+#if SIZEOF_LONG == 8
 #define ARCH_INT64_TYPE long
 #define ARCH_UINT64_TYPE unsigned long
 #define ARCH_INT64_PRINTF_FORMAT "l"
+#elif SIZEOF_LONGLONG == 8
+#define ARCH_INT64_TYPE long long
+#define ARCH_UINT64_TYPE unsigned long long
+#define ARCH_INT64_PRINTF_FORMAT "ll"
 #else
 #error "No 64-bit integer type available"
 #endif
@@ -112,6 +128,7 @@ typedef uint64_t uintnat;
 #define ARCH_FLOAT_ENDIANNESS 0x01234567
 #endif
 
+
 /* We use threaded code interpretation if the compiler provides labels
    as first-class values (GCC 2.x). */
 
@@ -143,10 +160,11 @@ typedef uint64_t uintnat;
 /* Maximum size of a block allocated in the young generation (words). */
 /* Must be > 4 */
 #define Max_young_wosize 256
+#define Max_young_whsize (Whsize_wosize (Max_young_wosize))
 
 
 /* Minimum size of the minor zone (words).
-   This must be at least [Max_young_wosize + 1]. */
+   This must be at least [2 * Max_young_whsize]. */
 #define Minor_heap_min 4096
 
 /* Maximum size of the minor zone (words).
@@ -185,5 +203,12 @@ typedef uint64_t uintnat;
  */
 #define Max_percent_free_def 500
 
+/* Default setting for the major GC slice smoothing window: 1
+   (i.e. no smoothing)
+*/
+#define Major_window_def 1
+
+/* Maximum size of the major GC slice smoothing window. */
+#define Max_major_window 50
 
 #endif /* CAML_CONFIG_H */

@@ -1,15 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the GNU Library General Public License, with    *)
-(*  the special exception on linking described in file ../LICENSE.     *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** The initially opened module.
 
@@ -52,19 +54,24 @@ external ( = ) : 'a -> 'a -> bool = "%equal"
    if and only if their current contents are structurally equal,
    even if the two mutable objects are not the same physical object.
    Equality between functional values raises [Invalid_argument].
-   Equality between cyclic data structures may not terminate. *)
+   Equality between cyclic data structures may not terminate.
+   Left-associative operator at precedence level 4/11. *)
 
 external ( <> ) : 'a -> 'a -> bool = "%notequal"
-(** Negation of {!Pervasives.( = )}. *)
+(** Negation of {!Pervasives.( = )}.
+    Left-associative operator at precedence level 4/11. *)
 
 external ( < ) : 'a -> 'a -> bool = "%lessthan"
-(** See {!Pervasives.( >= )}. *)
+(** See {!Pervasives.( >= )}.
+    Left-associative operator at precedence level 4/11. *)
 
 external ( > ) : 'a -> 'a -> bool = "%greaterthan"
-(** See {!Pervasives.( >= )}. *)
+(** See {!Pervasives.( >= )}.
+    Left-associative operator at precedence level 4/11. *)
 
 external ( <= ) : 'a -> 'a -> bool = "%lessequal"
-(** See {!Pervasives.( >= )}. *)
+(** See {!Pervasives.( >= )}.
+    Left-associative operator at precedence level 4/11. *)
 
 external ( >= ) : 'a -> 'a -> bool = "%greaterequal"
 (** Structural ordering functions. These functions coincide with
@@ -74,7 +81,8 @@ external ( >= ) : 'a -> 'a -> bool = "%greaterequal"
    The ordering is compatible with [( = )]. As in the case
    of [( = )], mutable structures are compared by contents.
    Comparison between functional values raises [Invalid_argument].
-   Comparison between cyclic structures may not terminate. *)
+   Comparison between cyclic structures may not terminate.
+   Left-associative operator at precedence level 4/11. *)
 
 external compare : 'a -> 'a -> int = "%compare"
 (** [compare x y] returns [0] if [x] is equal to [y],
@@ -113,10 +121,12 @@ external ( == ) : 'a -> 'a -> bool = "%eq"
    also affects [e2].
    On non-mutable types, the behavior of [( == )] is
    implementation-dependent; however, it is guaranteed that
-   [e1 == e2] implies [compare e1 e2 = 0]. *)
+   [e1 == e2] implies [compare e1 e2 = 0].
+   Left-associative operator at precedence level 4/11. *)
 
 external ( != ) : 'a -> 'a -> bool = "%noteq"
-(** Negation of {!Pervasives.( == )}. *)
+(** Negation of {!Pervasives.( == )}.
+    Left-associative operator at precedence level 4/11. *)
 
 
 (** {6 Boolean operations} *)
@@ -127,20 +137,25 @@ external not : bool -> bool = "%boolnot"
 external ( && ) : bool -> bool -> bool = "%sequand"
 (** The boolean 'and'. Evaluation is sequential, left-to-right:
    in [e1 && e2], [e1] is evaluated first, and if it returns [false],
-   [e2] is not evaluated at all. *)
+   [e2] is not evaluated at all.
+   Right-associative operator at precedence level 3/11. *)
 
 external ( & ) : bool -> bool -> bool = "%sequand"
   [@@ocaml.deprecated "Use (&&) instead."]
-(** @deprecated {!Pervasives.( && )} should be used instead. *)
+(** @deprecated {!Pervasives.( && )} should be used instead.
+    Right-associative operator at precedence level 3/11. *)
 
 external ( || ) : bool -> bool -> bool = "%sequor"
 (** The boolean 'or'. Evaluation is sequential, left-to-right:
    in [e1 || e2], [e1] is evaluated first, and if it returns [true],
-   [e2] is not evaluated at all. *)
+   [e2] is not evaluated at all.
+   Right-associative operator at precedence level 2/11.
+*)
 
 external ( or ) : bool -> bool -> bool = "%sequor"
   [@@ocaml.deprecated "Use (||) instead."]
-(** @deprecated {!Pervasives.( || )} should be used instead.*)
+(** @deprecated {!Pervasives.( || )} should be used instead.
+    Right-associative operator at precedence level 2/11. *)
 
 (** {6 Debugging} *)
 
@@ -149,22 +164,26 @@ external __LOC__ : string = "%loc_LOC"
     the file currently being parsed by the compiler, with the standard
     error format of OCaml: "File %S, line %d, characters %d-%d".
     @since 4.02.0
- *)
+*)
+
 external __FILE__ : string = "%loc_FILE"
 (** [__FILE__] returns the name of the file currently being
     parsed by the compiler.
     @since 4.02.0
 *)
+
 external __LINE__ : int = "%loc_LINE"
 (** [__LINE__] returns the line number at which this expression
     appears in the file currently being parsed by the compiler.
     @since 4.02.0
- *)
+*)
+
 external __MODULE__ : string = "%loc_MODULE"
 (** [__MODULE__] returns the module name of the file being
     parsed by the compiler.
     @since 4.02.0
- *)
+*)
+
 external __POS__ : string * int * int * int = "%loc_POS"
 (** [__POS__] returns a tuple [(file,lnum,cnum,enum)], corresponding
     to the location at which this expression appears in the file
@@ -180,13 +199,15 @@ external __LOC_OF__ : 'a -> string * 'a = "%loc_LOC"
     compiler, with the standard error format of OCaml: "File %S, line
     %d, characters %d-%d".
     @since 4.02.0
- *)
+*)
+
 external __LINE_OF__ : 'a -> int * 'a = "%loc_LINE"
 (** [__LINE__ expr] returns a pair [(line, expr)], where [line] is the
     line number at which the expression [expr] appears in the file
     currently being parsed by the compiler.
     @since 4.02.0
  *)
+
 external __POS_OF__ : 'a -> (string * int * int * int) * 'a = "%loc_POS"
 (** [__POS_OF__ expr] returns a pair [(loc,expr)], where [loc] is a
     tuple [(file,lnum,cnum,enum)] corresponding to the location at
@@ -202,12 +223,14 @@ external __POS_OF__ : 'a -> (string * int * int * int) * 'a = "%loc_POS"
 external ( |> ) : 'a -> ('a -> 'b) -> 'b = "%revapply"
 (** Reverse-application operator: [x |> f |> g] is exactly equivalent
  to [g (f (x))].
+ Left-associative operator at precedence level 4/11.
    @since 4.01
-*)
+ *)
 
 external ( @@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
 (** Application operator: [g @@ f @@ x] is exactly equivalent to
  [g (f (x))].
+ Right-associative operator at precedence level 5/11.
    @since 4.01
 *)
 
@@ -218,10 +241,14 @@ external ( @@ ) : ('a -> 'b) -> 'a -> 'b = "%apply"
    They do not fail on overflow. *)
 
 external ( ~- ) : int -> int = "%negint"
-(** Unary negation. You can also write [- e] instead of [~- e]. *)
+(** Unary negation. You can also write [- e] instead of [~- e].
+    Unary operator at precedence level 9/11 for [- e]
+    and 11/11 for [~- e]. *)
 
 external ( ~+ ) : int -> int = "%identity"
 (** Unary addition. You can also write [+ e] instead of [~+ e].
+    Unary operator at precedence level 9/11 for [+ e]
+    and 11/11 for [~+ e].
     @since 3.12.0
 *)
 
@@ -232,13 +259,16 @@ external pred : int -> int = "%predint"
 (** [pred x] is [x - 1]. *)
 
 external ( + ) : int -> int -> int = "%addint"
-(** Integer addition. *)
+(** Integer addition.
+    Left-associative operator at precedence level 6/11. *)
 
 external ( - ) : int -> int -> int = "%subint"
-(** Integer subtraction. *)
+(** Integer subtraction.
+    Left-associative operator at precedence level 6/11. *)
 
 external ( * ) : int -> int -> int = "%mulint"
-(** Integer multiplication. *)
+(** Integer multiplication.
+    Left-associative operator at precedence level 7/11. *)
 
 external ( / ) : int -> int -> int = "%divint"
 (** Integer division.
@@ -246,7 +276,8 @@ external ( / ) : int -> int -> int = "%divint"
    Integer division rounds the real quotient of its arguments towards zero.
    More precisely, if [x >= 0] and [y > 0], [x / y] is the greatest integer
    less than or equal to the real quotient of [x] by [y].  Moreover,
-   [(- x) / y = x / (- y) = - (x / y)].  *)
+   [(- x) / y = x / (- y) = - (x / y)].
+   Left-associative operator at precedence level 7/11. *)
 
 external ( mod ) : int -> int -> int = "%modint"
 (** Integer remainder.  If [y] is not zero, the result
@@ -255,7 +286,8 @@ external ( mod ) : int -> int -> int = "%modint"
    [abs(x mod y) <= abs(y) - 1].
    If [y = 0], [x mod y] raises [Division_by_zero].
    Note that [x mod y] is negative only if [x < 0].
-   Raise [Division_by_zero] if [y] is zero. *)
+   Raise [Division_by_zero] if [y] is zero.
+   Left-associative operator at precedence level 7/11. *)
 
 val abs : int -> int
 (** Return the absolute value of the argument.  Note that this may be
@@ -271,13 +303,16 @@ val min_int : int
 (** {7 Bitwise operations} *)
 
 external ( land ) : int -> int -> int = "%andint"
-(** Bitwise logical and. *)
+(** Bitwise logical and.
+    Left-associative operator at precedence level 7/11. *)
 
 external ( lor ) : int -> int -> int = "%orint"
-(** Bitwise logical or. *)
+(** Bitwise logical or.
+    Left-associative operator at precedence level 7/11. *)
 
 external ( lxor ) : int -> int -> int = "%xorint"
-(** Bitwise logical exclusive or. *)
+(** Bitwise logical exclusive or.
+    Left-associative operator at precedence level 7/11. *)
 
 val lnot : int -> int
 (** Bitwise logical negation. *)
@@ -286,18 +321,21 @@ external ( lsl ) : int -> int -> int = "%lslint"
 (** [n lsl m] shifts [n] to the left by [m] bits.
    The result is unspecified if [m < 0] or [m >= bitsize],
    where [bitsize] is [32] on a 32-bit platform and
-   [64] on a 64-bit platform. *)
+   [64] on a 64-bit platform.
+   Right-associative operator at precedence level 8/11. *)
 
 external ( lsr ) : int -> int -> int = "%lsrint"
 (** [n lsr m] shifts [n] to the right by [m] bits.
    This is a logical shift: zeroes are inserted regardless of
    the sign of [n].
-   The result is unspecified if [m < 0] or [m >= bitsize]. *)
+   The result is unspecified if [m < 0] or [m >= bitsize].
+   Right-associative operator at precedence level 8/11. *)
 
 external ( asr ) : int -> int -> int = "%asrint"
 (** [n asr m] shifts [n] to the right by [m] bits.
    This is an arithmetic shift: the sign bit of [n] is replicated.
-   The result is unspecified if [m < 0] or [m >= bitsize]. *)
+   The result is unspecified if [m < 0] or [m >= bitsize].
+   Right-associative operator at precedence level 8/11. *)
 
 
 (** {6 Floating-point arithmetic}
@@ -315,28 +353,37 @@ external ( asr ) : int -> int -> int = "%asrint"
 *)
 
 external ( ~-. ) : float -> float = "%negfloat"
-(** Unary negation. You can also write [-. e] instead of [~-. e]. *)
+(** Unary negation. You can also write [-. e] instead of [~-. e].
+    Unary operator at precedence level 9/11 for [-. e]
+    and 11/11 for [~-. e]. *)
 
 external ( ~+. ) : float -> float = "%identity"
 (** Unary addition. You can also write [+. e] instead of [~+. e].
+    Unary operator at precedence level 9/11 for [+. e]
+    and 11/11 for [~+. e].
     @since 3.12.0
 *)
 
 external ( +. ) : float -> float -> float = "%addfloat"
-(** Floating-point addition *)
+(** Floating-point addition.
+    Left-associative operator at precedence level 6/11. *)
 
 external ( -. ) : float -> float -> float = "%subfloat"
-(** Floating-point subtraction *)
+(** Floating-point subtraction.
+    Left-associative operator at precedence level 6/11. *)
 
 external ( *. ) : float -> float -> float = "%mulfloat"
-(** Floating-point multiplication *)
+(** Floating-point multiplication.
+    Left-associative operator at precedence level 7/11. *)
 
 external ( /. ) : float -> float -> float = "%divfloat"
-(** Floating-point division. *)
+(** Floating-point division.
+    Left-associative operator at precedence level 7/11. *)
 
 external ( ** ) : float -> float -> float = "caml_power_float" "pow"
   [@@unboxed] [@@noalloc]
-(** Exponentiation. *)
+(** Exponentiation.
+    Right-associative operator at precedence level 8/11. *)
 
 external sqrt : float -> float = "caml_sqrt_float" "sqrt"
   [@@unboxed] [@@noalloc]
@@ -401,7 +448,8 @@ external hypot : float -> float -> float = "caml_hypot_float" "caml_hypot"
 (** [hypot x y] returns [sqrt(x *. x + y *. y)], that is, the length
   of the hypotenuse of a right-angled triangle with sides of length
   [x] and [y], or, equivalently, the distance of the point [(x,y)]
-  to origin.
+  to origin.  If one of [x] or [y] is infinite, returns [infinity]
+  even if the other is [nan].
   @since 4.00.0  *)
 
 external cosh : float -> float = "caml_cosh_float" "cosh"
@@ -522,7 +570,8 @@ external classify_float : (float [@unboxed]) -> fpclass =
 *)
 
 val ( ^ ) : string -> string -> string
-(** String concatenation. *)
+(** String concatenation.
+    Right-associative operator at precedence level 5/11. *)
 
 
 (** {6 Character operations}
@@ -562,25 +611,64 @@ val bool_of_string : string -> bool
    Raise [Invalid_argument "bool_of_string"] if the string is not
    ["true"] or ["false"]. *)
 
+val bool_of_string_opt: string -> bool option
+(** Convert the given string to a boolean.
+    Return [None] if the string is not
+    ["true"] or ["false"].
+    @since 4.05
+*)
+
 val string_of_int : int -> string
 (** Return the string representation of an integer, in decimal. *)
 
 external int_of_string : string -> int = "caml_int_of_string"
 (** Convert the given string to an integer.
-   The string is read in decimal (by default) or in hexadecimal (if it
-   begins with [0x] or [0X]), octal (if it begins with [0o] or [0O]),
-   or binary (if it begins with [0b] or [0B]).
+   The string is read in decimal (by default, or if the string 
+   begins with [0u]), in hexadecimal (if it begins with [0x] or
+   [0X]), in octal (if it begins with [0o] or [0O]), or in binary
+   (if it begins with [0b] or [0B]).
+
+   The [0u] prefix reads the input as an unsigned integer in the range
+   [[0, 2*max_int+1]].  If the input exceeds {!max_int}
+   it is converted to the signed integer
+   [min_int + input - max_int - 1].
+
+   The [_] (underscore) character can appear anywhere in the string
+   and is ignored.
    Raise [Failure "int_of_string"] if the given string is not
    a valid representation of an integer, or if the integer represented
    exceeds the range of integers representable in type [int]. *)
+
+
+val int_of_string_opt: string -> int option
+(** Same as [int_of_string], but returns [None] instead of raising.
+    @since 4.05
+*)
 
 val string_of_float : float -> string
 (** Return the string representation of a floating-point number. *)
 
 external float_of_string : string -> float = "caml_float_of_string"
-(** Convert the given string to a float.  Raise [Failure "float_of_string"]
-   if the given string is not a valid representation of a float. *)
+(** Convert the given string to a float.  The string is read in decimal
+   (by default) or in hexadecimal (marked by [0x] or [0X]).
+   The format of decimal floating-point numbers is
+   [ [-] dd.ddd (e|E) [+|-] dd ], where [d] stands for a decimal digit.
+   The format of hexadecimal floating-point numbers is
+   [ [-] 0(x|X) hh.hhh (p|P) [+|-] dd ], where [h] stands for an
+   hexadecimal digit and [d] for a decimal digit.
+   In both cases, at least one of the integer and fractional parts must be
+   given; the exponent part is optional.
+   The [_] (underscore) character can appear anywhere in the string
+   and is ignored.
+   Depending on the execution platforms, other representations of
+   floating-point numbers can be accepted, but should not be relied upon.
+   Raise [Failure "float_of_string"] if the given string is not a valid
+   representation of a float. *)
 
+val float_of_string_opt: string -> float option
+(** Same as [float_of_string], but returns [None] instead of raising.
+    @since 4.05
+*)
 
 (** {6 Pair operations} *)
 
@@ -597,31 +685,9 @@ external snd : 'a * 'b -> 'b = "%field1"
 *)
 
 val ( @ ) : 'a list -> 'a list -> 'a list
-(** List concatenation. *)
+(** List concatenation.  Not tail-recursive (length of the first argument).
+    Right-associative operator at precedence level 5/11. *)
 
-
-
-
-(** {6 Array index operators} *)
-
-external  ( .() ) : 'a array -> int -> 'a  = "%array_opt_get"
-(** Parenthesis index operator for arrays.
- [ a.(index) ] is desugared to [ ( .() ) a index ]. *)
-
-external  ( .() <- ) : 'a array -> int -> 'a -> unit = "%array_opt_set"
-(** Parenthesis indexed assignment operator for arrays.
- [ a.(index) <- val ] is desugared to [ ( .() <- ) a index val ]*)
-
-
-(** {6 String index operators} *)
-
-external  ( .[] ) : string -> int -> char = "%string_opt_get"
-(** Bracket index operator for strings.
- [ a.[index] ] is desugared to [ (.[]) a index ]. *)
-
-external  ( .[] <- ) : bytes -> int -> char-> unit =  "%string_opt_set"
-(** Bracket indexed assignment operator for bytes.
- [ a.[index] <- val ]  is desugared to [ ( .[]<- ) a index val ]. *)
 
 (** {6 Input/output}
     Note: all input/output functions can raise [Sys_error] when the system
@@ -710,11 +776,23 @@ val read_int : unit -> int
    and convert it to an integer. Raise [Failure "int_of_string"]
    if the line read is not a valid representation of an integer. *)
 
+val read_int_opt: unit -> int option
+(** Same as [read_int_opt], but returns [None] instead of raising.
+    @since 4.05
+*)
+
 val read_float : unit -> float
 (** Flush standard output, then read one line from standard input
    and convert it to a floating-point number.
    The result is unspecified if the line read is not a valid
    representation of a floating-point number. *)
+
+val read_float_opt: unit -> float option
+(** Flush standard output, then read one line from standard input
+    and convert it to a floating-point number.
+    Returns [None] if the line read is not a valid
+    representation of a floating-point number.
+    @since 4.05.0 *)
 
 
 (** {7 General output functions} *)
@@ -734,7 +812,7 @@ type open_flag =
 
 val open_out : string -> out_channel
 (** Open the named file for writing, and return a new output channel
-   on that file, positionned at the beginning of the file. The
+   on that file, positioned at the beginning of the file. The
    file is truncated to zero length if it already exists. It
    is created if it does not already exists. *)
 
@@ -747,7 +825,7 @@ val open_out_bin : string -> out_channel
 val open_out_gen : open_flag list -> int -> string -> out_channel
 (** [open_out_gen mode perm filename] opens the named file for writing,
    as described above. The extra argument [mode]
-   specify the opening mode. The extra argument [perm] specifies
+   specifies the opening mode. The extra argument [perm] specifies
    the file permissions, in case the file must be created.
    {!Pervasives.open_out} and {!Pervasives.open_out_bin} are special
    cases of this function. *)
@@ -845,7 +923,7 @@ val set_binary_mode_out : out_channel -> bool -> unit
 
 val open_in : string -> in_channel
 (** Open the named file for reading, and return a new input channel
-   on that file, positionned at the beginning of the file. *)
+   on that file, positioned at the beginning of the file. *)
 
 val open_in_bin : string -> in_channel
 (** Same as {!Pervasives.open_in}, but the file is opened in binary mode,
@@ -987,11 +1065,13 @@ external ref : 'a -> 'a ref = "%makemutable"
 
 external ( ! ) : 'a ref -> 'a = "%field0"
 (** [!r] returns the current contents of reference [r].
-   Equivalent to [fun r -> r.contents]. *)
+   Equivalent to [fun r -> r.contents].
+   Unary operator at precedence level 11/11.*)
 
 external ( := ) : 'a ref -> 'a -> unit = "%setfield0"
 (** [r := a] stores the value of [a] in reference [r].
-   Equivalent to [fun r v -> r.contents <- v]. *)
+   Equivalent to [fun r v -> r.contents <- v].
+   Right-associative operator at precedence level 1/11. *)
 
 external incr : int ref -> unit = "%incr"
 (** Increment the integer contained in the given reference.
@@ -1003,6 +1083,7 @@ external decr : int ref -> unit = "%decr"
 
 (** {6 Result type} *)
 
+(** @since 4.03.0 *)
 type ('a,'b) result = Ok of 'a | Error of 'b
 
 (** {6 Operations on format strings} *)
@@ -1049,12 +1130,12 @@ type ('a,'b) result = Ok of 'a | Error of 'b
 
     - ['b] is the type of input source for formatted input functions and the
       type of output target for formatted output functions.
-      For [printf]-style functions from module [Printf], ['b] is typically
+      For [printf]-style functions from module {!Printf}, ['b] is typically
       [out_channel];
-      for [printf]-style functions from module [Format], ['b] is typically
-      [Format.formatter];
-      for [scanf]-style functions from module [Scanf], ['b] is typically
-      [Scanf.Scanning.in_channel].
+      for [printf]-style functions from module {!Format}, ['b] is typically
+      {!Format.formatter};
+      for [scanf]-style functions from module {!Scanf}, ['b] is typically
+      {!Scanf.Scanning.in_channel}.
 
       Type argument ['b] is also the type of the first argument given to
       user's defined printing functions for [%a] and [%t] conversions,
@@ -1096,15 +1177,15 @@ external format_of_string :
 *)
 
 val ( ^^ ) :
-      ('a, 'b, 'c, 'd, 'e, 'f) format6 ->
-      ('f, 'b, 'c, 'e, 'g, 'h) format6 ->
-      ('a, 'b, 'c, 'd, 'g, 'h) format6
+  ('a, 'b, 'c, 'd, 'e, 'f) format6 ->
+  ('f, 'b, 'c, 'e, 'g, 'h) format6 ->
+  ('a, 'b, 'c, 'd, 'g, 'h) format6
 (** [f1 ^^ f2] catenates format strings [f1] and [f2]. The result is a
   format string that behaves as the concatenation of format strings [f1] and
   [f2]: in case of formatted output, it accepts arguments from [f1], then
   arguments from [f2]; in case of formatted input, it returns results from
   [f1], then results from [f2].
-*)
+  Right-associative operator at precedence level 5/11. *)
 
 
 (** {6 Program termination} *)
@@ -1119,12 +1200,15 @@ val exit : int -> 'a
    terminates early because of an uncaught exception. *)
 
 val at_exit : (unit -> unit) -> unit
-(** Register the given function to be called at program
-   termination time. The functions registered with [at_exit]
-   will be called when the program executes {!Pervasives.exit},
-   or terminates, either normally or because of an uncaught exception.
-   The functions are called in 'last in, first out' order:
-   the function most recently added with [at_exit] is called first. *)
+(** Register the given function to be called at program termination
+   time. The functions registered with [at_exit] will be called when
+   the program does any of the following:
+   - executes {!Pervasives.exit}
+   - terminates, either normally or because of an uncaught
+     exception
+   - executes the C function [caml_shutdown].
+   The functions are called in 'last in, first out' order: the
+   function most recently added with [at_exit] is called first. *)
 
 (**/**)
 

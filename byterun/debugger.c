@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Interface with the byte-code debugger */
 
@@ -23,11 +27,11 @@
 #include "caml/config.h"
 #include "caml/debugger.h"
 #include "caml/misc.h"
+#include "caml/osdeps.h"
 
 int caml_debugger_in_use = 0;
 uintnat caml_event_count;
 int caml_debugger_fork_mode = 1; /* parent by default */
-value marshal_flags = Val_emptylist;
 
 #if !defined(HAS_SOCKETS) || defined(NATIVE_CODE)
 
@@ -73,6 +77,8 @@ void caml_debugger_cleanup_fork(void)
 #include "caml/stacks.h"
 #include "caml/sys.h"
 
+static value marshal_flags = Val_emptylist;
+
 static int sock_domain;         /* Socket domain for the debugger */
 static union {                  /* Socket address for the debugger */
   struct sockaddr s_gen;
@@ -87,7 +93,7 @@ static int dbg_socket = -1;     /* The socket connected to the debugger */
 static struct channel * dbg_in; /* Input channel on the socket */
 static struct channel * dbg_out;/* Output channel on the socket */
 
-static char *dbg_addr = "(none)";
+static char *dbg_addr = NULL;
 
 static void open_connection(void)
 {
@@ -115,7 +121,7 @@ static void open_connection(void)
 #endif
   if (dbg_socket == -1 ||
       connect(dbg_socket, &sock_addr.s_gen, sock_addr_len) == -1){
-    caml_fatal_error_arg2 ("cannot connect to debugger at %s\n", dbg_addr,
+    caml_fatal_error_arg2 ("cannot connect to debugger at %s\n", (dbg_addr ? dbg_addr : "(none)"),
                            "error: %s\n", strerror (errno));
   }
 #ifdef _WIN32
@@ -158,6 +164,7 @@ static void winsock_cleanup(void)
 void caml_debugger_init(void)
 {
   char * address;
+  char_os * a;
   char * port, * p;
   struct hostent * host;
   int n;
@@ -167,8 +174,10 @@ void caml_debugger_init(void)
   Store_field(marshal_flags, 0, Val_int(1)); /* Marshal.Closures */
   Store_field(marshal_flags, 1, Val_emptylist);
 
-  address = getenv("CAML_DEBUG_SOCKET");
+  a = caml_secure_getenv(_T("CAML_DEBUG_SOCKET"));
+  address = a ? caml_stat_strdup_of_os(a) : NULL;
   if (address == NULL) return;
+  if (dbg_addr != NULL) caml_stat_free(dbg_addr);
   dbg_addr = address;
 
 #ifdef _WIN32
@@ -217,7 +226,7 @@ void caml_debugger_init(void)
 static value getval(struct channel *chan)
 {
   value res;
-  if (caml_really_getblock(chan, (char *) &res, sizeof(res)) == 0)
+  if (caml_really_getblock(chan, (char *) &res, sizeof(res)) < sizeof(res))
     caml_raise_end_of_file(); /* Bad, but consistent with caml_getword */
   return res;
 }
@@ -264,19 +273,19 @@ void caml_debugger(enum event_kind event)
   case PROGRAM_START:           /* Nothing to report */
     goto command_loop;
   case EVENT_COUNT:
-    putch(dbg_out, REP_EVENT);
+    caml_putch(dbg_out, REP_EVENT);
     break;
   case BREAKPOINT:
-    putch(dbg_out, REP_BREAKPOINT);
+    caml_putch(dbg_out, REP_BREAKPOINT);
     break;
   case PROGRAM_EXIT:
-    putch(dbg_out, REP_EXITED);
+    caml_putch(dbg_out, REP_EXITED);
     break;
   case TRAP_BARRIER:
-    putch(dbg_out, REP_TRAP);
+    caml_putch(dbg_out, REP_TRAP);
     break;
   case UNCAUGHT_EXC:
-    putch(dbg_out, REP_UNCAUGHT_EXC);
+    caml_putch(dbg_out, REP_UNCAUGHT_EXC);
     break;
   }
   caml_putword(dbg_out, caml_event_count);
@@ -294,23 +303,23 @@ void caml_debugger(enum event_kind event)
 
   /* Read and execute the commands sent by the debugger */
   while(1) {
-    switch(getch(dbg_in)) {
+    switch(caml_getch(dbg_in)) {
     case REQ_SET_EVENT:
       pos = caml_getword(dbg_in);
-      Assert (pos >= 0);
-      Assert (pos < caml_code_size);
+      CAMLassert (pos >= 0);
+      CAMLassert (pos < caml_code_size);
       caml_set_instruction(caml_start_code + pos / sizeof(opcode_t), EVENT);
       break;
     case REQ_SET_BREAKPOINT:
       pos = caml_getword(dbg_in);
-      Assert (pos >= 0);
-      Assert (pos < caml_code_size);
+      CAMLassert (pos >= 0);
+      CAMLassert (pos < caml_code_size);
       caml_set_instruction(caml_start_code + pos / sizeof(opcode_t), BREAK);
       break;
     case REQ_RESET_INSTR:
       pos = caml_getword(dbg_in);
-      Assert (pos >= 0);
-      Assert (pos < caml_code_size);
+      CAMLassert (pos >= 0);
+      CAMLassert (pos < caml_code_size);
       pos = pos / sizeof(opcode_t);
       caml_set_instruction(caml_start_code + pos, caml_saved_code[pos]);
       break;
@@ -402,11 +411,11 @@ void caml_debugger(enum event_kind event)
       val = getval(dbg_in);
       i = caml_getword(dbg_in);
       if (Tag_val(val) != Double_array_tag) {
-        putch(dbg_out, 0);
+        caml_putch(dbg_out, 0);
         putval(dbg_out, Field(val, i));
       } else {
-        double d = Double_field(val, i);
-        putch(dbg_out, 1);
+        double d = Double_flat_field(val, i);
+        caml_putch(dbg_out, 1);
         caml_really_putblock(dbg_out, (char *) &d, 8);
       }
       caml_flush(dbg_out);

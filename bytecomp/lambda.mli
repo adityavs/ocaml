@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* The "lambda" intermediate code *)
 
@@ -22,6 +25,7 @@ type compile_time_constant =
   | Ostype_unix
   | Ostype_win32
   | Ostype_cygwin
+  | Backend_type
 
 type loc_kind =
   | Loc_FILE
@@ -30,21 +34,43 @@ type loc_kind =
   | Loc_LOC
   | Loc_POS
 
+type immediate_or_pointer =
+  | Immediate
+  | Pointer
+
+type initialization_or_assignment =
+  | Assignment
+  (* Initialization of in heap values, like [caml_initialize] C primitive.  The
+     field should not have been read before and initialization should happen
+     only once. *)
+  | Heap_initialization
+  (* Initialization of roots only. Compiles to a simple store.
+     No checks are done to preserve GC invariants.  *)
+  | Root_initialization
+
+type is_safe =
+  | Safe
+  | Unsafe
+
 type primitive =
-    Pidentity
+  | Pidentity
+  | Pbytes_to_string
+  | Pbytes_of_string
   | Pignore
-  | Prevapply of Location.t
-  | Pdirapply of Location.t
+  | Prevapply
+  | Pdirapply
   | Ploc of loc_kind
     (* Globals *)
   | Pgetglobal of Ident.t
   | Psetglobal of Ident.t
   (* Operations on heap blocks *)
-  | Pmakeblock of int * mutable_flag
+  | Pmakeblock of int * mutable_flag * block_shape
   | Pfield of int
-  | Psetfield of int * bool
+  | Pfield_computed
+  | Psetfield of int * immediate_or_pointer * initialization_or_assignment
+  | Psetfield_computed of immediate_or_pointer * initialization_or_assignment
   | Pfloatfield of int
-  | Psetfloatfield of int
+  | Psetfloatfield of int * initialization_or_assignment
   | Pduprecord of Types.record_representation * int
   (* Force lazy values *)
   | Plazyforce
@@ -55,7 +81,8 @@ type primitive =
   (* Boolean operations *)
   | Psequand | Psequor | Pnot
   (* Integer operations *)
-  | Pnegint | Paddint | Psubint | Pmulint | Pdivint | Pmodint
+  | Pnegint | Paddint | Psubint | Pmulint
+  | Pdivint of is_safe | Pmodint of is_safe
   | Pandint | Porint | Pxorint
   | Plslint | Plsrint | Pasrint
   | Pintcomp of comparison
@@ -67,9 +94,14 @@ type primitive =
   | Paddfloat | Psubfloat | Pmulfloat | Pdivfloat
   | Pfloatcomp of comparison
   (* String operations *)
-  | Pstringlength | Pstringrefu | Pstringsetu | Pstringrefs | Pstringsets
+  | Pstringlength | Pstringrefu  | Pstringrefs
+  | Pbyteslength | Pbytesrefu | Pbytessetu | Pbytesrefs | Pbytessets
   (* Array operations *)
-  | Pmakearray of array_kind
+  | Pmakearray of array_kind * mutable_flag
+  | Pduparray of array_kind * mutable_flag
+  (** For [Pduparray], the argument must be an immutable array.
+      The arguments of [Pduparray] give the kind and mutability of the
+      array being *produced* by the duplication. *)
   | Parraylength of array_kind
   | Parrayrefu of array_kind
   | Parraysetu of array_kind
@@ -89,8 +121,8 @@ type primitive =
   | Paddbint of boxed_integer
   | Psubbint of boxed_integer
   | Pmulbint of boxed_integer
-  | Pdivbint of boxed_integer
-  | Pmodbint of boxed_integer
+  | Pdivbint of { size : boxed_integer; is_safe : is_safe }
+  | Pmodbint of { size : boxed_integer; is_safe : is_safe }
   | Pandbint of boxed_integer
   | Porbint of boxed_integer
   | Pxorbint of boxed_integer
@@ -125,12 +157,20 @@ type primitive =
   | Pbbswap of boxed_integer
   (* Integer to external pointer *)
   | Pint_as_pointer
+  (* Inhibition of optimisation *)
+  | Popaque
 
 and comparison =
     Ceq | Cneq | Clt | Cgt | Cle | Cge
 
 and array_kind =
     Pgenarray | Paddrarray | Pintarray | Pfloatarray
+
+and value_kind =
+    Pgenval | Pfloatval | Pboxedintval of boxed_integer | Pintval
+
+and block_shape =
+  value_kind list option
 
 and boxed_integer = Primitive.boxed_integer =
     Pnativeint | Pint32 | Pint64
@@ -164,20 +204,27 @@ type structured_constant =
 type inline_attribute =
   | Always_inline (* [@inline] or [@inline always] *)
   | Never_inline (* [@inline never] *)
+  | Unroll of int (* [@unroll x] *)
   | Default_inline (* no [@inline] attribute *)
+
+type specialise_attribute =
+  | Always_specialise (* [@specialise] or [@specialise always] *)
+  | Never_specialise (* [@specialise never] *)
+  | Default_specialise (* no [@specialise] attribute *)
 
 type function_kind = Curried | Tupled
 
 type let_kind = Strict | Alias | StrictOpt | Variable
 (* Meaning of kinds for let x = e in e':
-    Strict: e may have side-effets; always evaluate e first
+    Strict: e may have side-effects; always evaluate e first
       (If e is a simple expression, e.g. a variable or constant,
        we may still substitute e'[x/e].)
     Alias: e is pure, we can substitute e'[x/e] if x has 0 or 1 occurrences
       in e'
     StrictOpt: e does not have side-effects, but depend on the store;
       we can discard e if x does not appear in e'
-    Variable: the variable x is assigned later in e' *)
+    Variable: the variable x is assigned later in e'
+ *)
 
 type meth_kind = Self | Public | Cached
 
@@ -185,6 +232,9 @@ type shared_code = (int * int) list     (* stack size -> code label *)
 
 type function_attribute = {
   inline : inline_attribute;
+  specialise : specialise_attribute;
+  is_a_functor: bool;
+  stub: bool;
 }
 
 type lambda =
@@ -192,13 +242,14 @@ type lambda =
   | Lconst of structured_constant
   | Lapply of lambda_apply
   | Lfunction of lfunction
-  | Llet of let_kind * Ident.t * lambda * lambda
+  | Llet of let_kind * value_kind * Ident.t * lambda * lambda
   | Lletrec of (Ident.t * lambda) list * lambda
-  | Lprim of primitive * lambda list
-  | Lswitch of lambda * lambda_switch
+  | Lprim of primitive * lambda list * Location.t
+  | Lswitch of lambda * lambda_switch * Location.t
 (* switch on strings, clauses are sorted by string order,
    strings are pairwise distinct *)
-  | Lstringswitch of lambda * (string * lambda) list * lambda option
+  | Lstringswitch of
+      lambda * (string * lambda) list * lambda option * Location.t
   | Lstaticraise of int * lambda list
   | Lstaticcatch of lambda * (int * Ident.t list) * lambda
   | Ltrywith of lambda * Ident.t * lambda
@@ -215,14 +266,16 @@ and lfunction =
   { kind: function_kind;
     params: Ident.t list;
     body: lambda;
-    attr: function_attribute; } (* specified with [@inline] attribute *)
+    attr: function_attribute; (* specified with [@inline] attribute *)
+    loc : Location.t; }
 
 and lambda_apply =
   { ap_func : lambda;
     ap_args : lambda list;
     ap_loc : Location.t;
     ap_should_be_tailcall : bool;       (* true if [@tailcall] was specified *)
-    ap_inlined : inline_attribute }     (* specified with the [@inline] attribute *)
+    ap_inlined : inline_attribute; (* specified with the [@inlined] attribute *)
+    ap_specialised : specialise_attribute; }
 
 and lambda_switch =
   { sw_numconsts: int;                  (* Number of integer cases *)
@@ -240,6 +293,26 @@ and lambda_event_kind =
     Lev_before
   | Lev_after of Types.type_expr
   | Lev_function
+  | Lev_pseudo
+  | Lev_module_definition of Ident.t
+
+type program =
+  { module_ident : Ident.t;
+    main_module_block_size : int;
+    required_globals : Ident.Set.t;    (* Modules whose initializer side effects
+                                          must occur before [code]. *)
+    code : lambda }
+(* Lambda code for the middle-end.
+   * In the closure case the code is a sequence of assignments to a
+     preallocated block of size [main_module_block_size] using
+     (Setfield(Getglobal(module_ident))). The size is used to preallocate
+     the block.
+   * In the flambda case the code is an expression returning a block
+     value of size [main_module_block_size]. The size is used to build
+     the module root as an initialize_symbol
+     Initialize_symbol(module_name, 0,
+       [getfield 0; ...; getfield (main_module_block_size - 1)])
+*)
 
 (* Sharing key *)
 val make_key: lambda -> lambda option
@@ -256,15 +329,24 @@ val free_methods: lambda -> IdentSet.t
 
 val transl_normal_path: Path.t -> lambda   (* Path.t is already normal *)
 val transl_path: ?loc:Location.t -> Env.t -> Path.t -> lambda
+[@@ocaml.deprecated "use transl_{module,value,extension,class}_path instead"]
+
+val transl_module_path: ?loc:Location.t -> Env.t -> Path.t -> lambda
+val transl_value_path: ?loc:Location.t -> Env.t -> Path.t -> lambda
+val transl_extension_path: ?loc:Location.t -> Env.t -> Path.t -> lambda
+val transl_class_path: ?loc:Location.t -> Env.t -> Path.t -> lambda
+
 val make_sequence: ('a -> lambda) -> 'a list -> lambda
 
 val subst_lambda: lambda Ident.tbl -> lambda -> lambda
+val map : (lambda -> lambda) -> lambda -> lambda
 val bind : let_kind -> Ident.t -> lambda -> lambda -> lambda
 
 val commute_comparison : comparison -> comparison
 val negate_comparison : comparison -> comparison
 
 val default_function_attribute : function_attribute
+val default_stub_attribute : function_attribute
 
 (***********************)
 (* For static failures *)
@@ -286,5 +368,10 @@ val patch_guarded : lambda -> lambda -> lambda
 
 val raise_kind: raise_kind -> string
 val lam_of_loc : loc_kind -> Location.t -> lambda
+
+val merge_inline_attributes
+   : inline_attribute
+  -> inline_attribute
+  -> inline_attribute option
 
 val reset: unit -> unit

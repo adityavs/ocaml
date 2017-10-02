@@ -1,19 +1,10 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                 Jeremie Dimino, Jane Street Europe                  *)
-(*                                                                     *)
-(*  Copyright 2015 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the S Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
-
 module S = struct
   include Stack
 
-  let to_list s = let l = ref [] in iter (fun x -> l := x :: !l) s; !l (* from bottom to top *)
+  let to_list s =    (* from bottom to top *)
+    let l = ref [] in
+    iter (fun x -> l := x :: !l) s;
+    !l
 end
 
 let does_raise f s =
@@ -116,7 +107,7 @@ let () =
 ;;
 
 let () =
-  let s1 = S.create () and s2 = S.create () in
+  let s1 = S.create () in
   for i = 1 to 4 do S.push i s1 done;
   assert (S.length s1 = 4); assert (S.to_list s1 = [1; 2; 3; 4]);
   let s2 = S.copy s1 in

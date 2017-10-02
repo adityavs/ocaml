@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** The module for analysing the typed abstract syntax tree and source code and creating modules, classes, ..., elements.*)
 
@@ -89,7 +92,7 @@ module Typedtree_search :
 module Analyser :
   functor (My_ir : Odoc_sig.Info_retriever) ->
     sig
-      (** This function takes a file name, a file containg the code and
+      (** This function takes a file name, a file containing the code and
          the typed tree obtained from the compiler.
          It goes through the tree, creating values for encountered
          functions, modules, ..., and looking in the source file for comments.*)

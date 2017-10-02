@@ -1,15 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*             Damien Doligez, projet Para, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*              Damien Doligez, projet Para, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 /* Allocation macros and functions */
 
@@ -20,11 +22,11 @@
 #include "compatibility.h"
 #endif
 #include "config.h"
-/* <private> */
+#ifdef CAML_INTERNALS
 #include "gc.h"
 #include "major_gc.h"
 #include "minor_gc.h"
-/* </private> */
+#endif /* CAML_INTERNALS */
 #include "misc.h"
 #include "mlvalues.h"
 
@@ -34,6 +36,16 @@ extern "C" {
 
 
 CAMLextern value caml_alloc_shr (mlsize_t wosize, tag_t);
+#ifdef WITH_PROFINFO
+CAMLextern value caml_alloc_shr_with_profinfo (mlsize_t, tag_t, intnat);
+CAMLextern value caml_alloc_shr_preserving_profinfo (mlsize_t, tag_t,
+                                                     header_t);
+#else
+#define caml_alloc_shr_with_profinfo(size, tag, profinfo) \
+  caml_alloc_shr(size, tag)
+#define caml_alloc_shr_preserving_profinfo(size, tag, header) \
+  caml_alloc_shr(size, tag)
+#endif /* WITH_PROFINFO */
 CAMLextern value caml_alloc_shr_no_raise (mlsize_t wosize, tag_t);
 CAMLextern void caml_adjust_gc_speed (mlsize_t, mlsize_t);
 CAMLextern void caml_alloc_dependent_memory (mlsize_t bsz);
@@ -41,17 +53,146 @@ CAMLextern void caml_free_dependent_memory (mlsize_t bsz);
 CAMLextern void caml_modify (value *, value);
 CAMLextern void caml_initialize (value *, value);
 CAMLextern value caml_check_urgent_gc (value);
-CAMLextern void * caml_stat_alloc (asize_t);              /* Size in bytes. */
-CAMLextern void caml_stat_free (void *);
-CAMLextern void * caml_stat_resize (void *, asize_t);     /* Size in bytes. */
-char *caml_alloc_for_heap (asize_t request);   /* Size in bytes. */
-void caml_free_for_heap (char *mem);
-int caml_add_to_heap (char *mem);
-color_t caml_allocation_color (void *hp);
+CAMLextern int caml_init_alloc_for_heap (void);
+CAMLextern char *caml_alloc_for_heap (asize_t request);   /* Size in bytes. */
+CAMLextern void caml_free_for_heap (char *mem);
+CAMLextern void caml_disown_for_heap (char *mem);
+CAMLextern int caml_add_to_heap (char *mem);
+CAMLextern color_t caml_allocation_color (void *hp);
+
+CAMLextern int caml_huge_fallback_count;
+
+
+/* [caml_stat_*] functions below provide an interface to the static memory
+   manager built into the runtime, which can be used for managing static
+   (that is, non-moving) blocks of heap memory.
+
+   Function arguments that have type [caml_stat_block] must always be pointers
+   to blocks returned by the [caml_stat_*] functions below. Attempting to use
+   these functions on memory blocks allocated by a different memory manager
+   (e.g. the one from the C runtime) will cause undefined behaviour.
+*/
+typedef void* caml_stat_block;
+
+#ifdef CAML_INTERNALS
+
+/* The pool must be initialized with a call to [caml_stat_create_pool]
+   before it is possible to use any of the [caml_stat_*] functions below.
+
+   If the pool is not initialized, [caml_stat_*] functions will still work in
+   backward compatibility mode, becoming thin wrappers around [malloc] family
+   of functions. In this case, calling [caml_stat_destroy_pool] will not free
+   the claimed heap memory, resulting in leaks.
+*/
+CAMLextern void caml_stat_create_pool(void);
+
+/* [caml_stat_destroy_pool] frees all the heap memory claimed by the pool.
+
+   Once the pool is destroyed, [caml_stat_*] functions will continue to work
+   in backward compatibility mode, becoming thin wrappers around [malloc]
+   family of functions.
+*/
+CAMLextern void caml_stat_destroy_pool(void);
+
+#endif /* CAML_INTERNALS */
+
+/* [caml_stat_alloc(size)] allocates a memory block of the requested [size]
+   (in bytes) and returns a pointer to it. It throws an OCaml exception in case
+   the request fails, and so requires the runtime lock to be held.
+*/
+CAMLextern caml_stat_block caml_stat_alloc(asize_t);
+
+/* [caml_stat_alloc_noexc(size)] allocates a memory block of the requested [size]
+   (in bytes) and returns a pointer to it, or NULL in case the request fails.
+*/
+CAMLextern caml_stat_block caml_stat_alloc_noexc(asize_t);
+
+/* [caml_stat_alloc_aligned(size, modulo, block*)] allocates a memory block of
+   the requested [size] (in bytes), the starting address of which is aligned to
+   the provided [modulo] value. The function returns the aligned address, as
+   well as the unaligned [block] (as an output parameter). It throws an OCaml
+   exception in case the request fails, and so requires the runtime lock.
+*/
+CAMLextern void* caml_stat_alloc_aligned(asize_t, int modulo, caml_stat_block*);
+
+/* [caml_stat_alloc_aligned_noexc] is a variant of [caml_stat_alloc_aligned]
+   that returns NULL in case the request fails, and doesn't require the runtime
+   lock to be held.
+*/
+CAMLextern void* caml_stat_alloc_aligned_noexc(asize_t, int modulo,
+                                               caml_stat_block*);
+
+/* [caml_stat_calloc_noexc(num, size)] allocates a block of memory for an array
+   of [num] elements, each of them [size] bytes long, and initializes all its
+   bits to zero, effectively allocating a zero-initialized memory block of
+   [num * size] bytes. It returns NULL in case the request fails.
+*/
+CAMLextern caml_stat_block caml_stat_calloc_noexc(asize_t, asize_t);
+
+/* [caml_stat_free(block)] deallocates the provided [block]. */
+CAMLextern void caml_stat_free(caml_stat_block);
+
+/* [caml_stat_resize(block, size)] changes the size of the provided [block] to
+   [size] bytes. The function may move the memory block to a new location (whose
+   address is returned by the function). The content of the [block] is preserved
+   up to the smaller of the new and old sizes, even if the block is moved to a
+   new location. If the new size is larger, the value of the newly allocated
+   portion is indeterminate. The function throws an OCaml exception in case the
+   request fails, and so requires the runtime lock to be held.
+*/
+CAMLextern caml_stat_block caml_stat_resize(caml_stat_block, asize_t);
+
+/* [caml_stat_resize_noexc] is a variant of [caml_stat_resize] that returns NULL
+   in case the request fails, and doesn't require the runtime lock.
+*/
+CAMLextern caml_stat_block caml_stat_resize_noexc(caml_stat_block, asize_t);
+
+
+/* A [caml_stat_block] containing a NULL-terminated string */
+typedef char* caml_stat_string;
+
+/* [caml_stat_strdup(s)] returns a pointer to a heap-allocated string which is a
+   copy of the NULL-terminated string [s]. It throws an OCaml exception in case
+   the request fails, and so requires the runtime lock to be held.
+*/
+CAMLextern caml_stat_string caml_stat_strdup(const char *s);
+#ifdef _WIN32
+CAMLextern wchar_t* caml_stat_wcsdup(const wchar_t *s);
+#endif
+
+/* [caml_stat_strdup_noexc] is a variant of [caml_stat_strdup] that returns NULL
+   in case the request fails, and doesn't require the runtime lock.
+*/
+CAMLextern caml_stat_string caml_stat_strdup_noexc(const char *s);
+
+/* [caml_stat_strconcat(nargs, strings)] concatenates NULL-terminated [strings]
+   (an array of [char*] of size [nargs]) into a new string, dropping all NULLs,
+   except for the very last one. It throws an OCaml exception in case the
+   request fails, and so requires the runtime lock to be held.
+*/
+CAMLextern caml_stat_string caml_stat_strconcat(int n, ...);
+#ifdef _WIN32
+CAMLextern wchar_t* caml_stat_wcsconcat(int n, ...);
+#endif
+
 
 /* void caml_shrink_heap (char *);        Only used in compact.c */
 
-/* <private> */
+#ifdef CAML_INTERNALS
+
+extern uintnat caml_use_huge_pages;
+
+#ifdef HAS_HUGE_PAGES
+#include <sys/mman.h>
+#define Heap_page_size HUGE_PAGE_SIZE
+#define Round_mmap_size(x)                                      \
+    (((x) + (Heap_page_size - 1)) & ~ (Heap_page_size - 1))
+#endif
+
+
+int caml_page_table_add(int kind, void * start, void * end);
+int caml_page_table_remove(int kind, void * start, void * end);
+int caml_page_table_initialize(mlsize_t bytesize);
 
 #ifdef DEBUG
 #define DEBUG_clear(result, wosize) do{ \
@@ -64,27 +205,40 @@ color_t caml_allocation_color (void *hp);
 #define DEBUG_clear(result, wosize)
 #endif
 
-#define Alloc_small(result, wosize, tag) do{    CAMLassert ((wosize) >= 1); \
-                                          CAMLassert ((tag_t) (tag) < 256); \
-                                 CAMLassert ((wosize) <= Max_young_wosize); \
-  caml_young_ptr -= Whsize_wosize (wosize);                                 \
-  if (caml_young_ptr < caml_young_start){                                   \
-    caml_young_ptr += Whsize_wosize (wosize);                               \
-    Setup_for_gc;                                                           \
-    caml_minor_collection ();                                               \
-    Restore_after_gc;                                                       \
-    caml_young_ptr -= Whsize_wosize (wosize);                               \
-  }                                                                         \
-  Hd_hp (caml_young_ptr) = Make_header ((wosize), (tag), Caml_black);       \
-  (result) = Val_hp (caml_young_ptr);                                       \
-  DEBUG_clear ((result), (wosize));                                         \
+#define Alloc_small_with_profinfo(result, wosize, tag, profinfo) do { \
+  CAMLassert ((wosize) >= 1); \
+  CAMLassert ((tag_t) (tag) < 256); \
+  CAMLassert ((wosize) <= Max_young_wosize); \
+  caml_young_ptr -= Whsize_wosize (wosize); \
+  if (caml_young_ptr < caml_young_trigger){ \
+    caml_young_ptr += Whsize_wosize (wosize); \
+    CAML_INSTR_INT ("force_minor/alloc_small@", 1); \
+    Setup_for_gc; \
+    caml_gc_dispatch (); \
+    Restore_after_gc; \
+    caml_young_ptr -= Whsize_wosize (wosize); \
+  } \
+  Hd_hp (caml_young_ptr) = \
+    Make_header_with_profinfo ((wosize), (tag), Caml_black, profinfo); \
+  (result) = Val_hp (caml_young_ptr); \
+  DEBUG_clear ((result), (wosize)); \
 }while(0)
+
+#if defined(NATIVE_CODE) && defined(WITH_SPACETIME)
+extern uintnat caml_spacetime_my_profinfo(struct ext_table**, uintnat);
+#define Alloc_small(result, wosize, tag) \
+  Alloc_small_with_profinfo(result, wosize, tag, \
+    caml_spacetime_my_profinfo(NULL, wosize))
+#else
+#define Alloc_small(result, wosize, tag) \
+  Alloc_small_with_profinfo(result, wosize, tag, (uintnat) 0)
+#endif
 
 /* Deprecated alias for [caml_modify] */
 
 #define Modify(fp,val) caml_modify((fp), (val))
 
-/* </private> */
+#endif /* CAML_INTERNALS */
 
 struct caml__roots_block {
   struct caml__roots_block *next;
@@ -178,6 +332,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparam1(x) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = ( \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = 1), \
@@ -189,6 +344,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparam2(x, y) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = ( \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = 1), \
@@ -201,6 +357,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparam3(x, y, z) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = ( \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = 1), \
@@ -214,6 +371,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparam4(x, y, z, t) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = ( \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = 1), \
@@ -228,6 +386,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparam5(x, y, z, t, u) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = ( \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = 1), \
@@ -243,6 +402,7 @@ CAMLextern struct caml__roots_block *caml_local_roots;  /* defined in roots.c */
 #define CAMLxparamN(x, size) \
   struct caml__roots_block caml__roots_##x; \
   CAMLunused_start int caml__dummy_##x = (     \
+    (void) caml__frame, \
     (caml__roots_##x.next = caml_local_roots), \
     (caml_local_roots = &caml__roots_##x), \
     (caml__roots_##x.nitems = (size)), \

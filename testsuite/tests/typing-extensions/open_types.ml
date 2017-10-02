@@ -52,15 +52,7 @@ type ('a, 'b) foo = ..
 type ('a, 'b) bar = ('a, 'a) foo = .. (* Error: constraints do not match *)
 ;;
 
-(* Private abstract types cannot be open *)
-
-type foo = ..
-;;
-
-type bar = private foo = .. (* ERROR: Private abstract types cannot be open *)
-;;
-
-(* Check that signatures can hide open-ness *)
+(* Check that signatures can hide exstensibility *)
 
 module M = struct type foo = .. end
 ;;
@@ -74,7 +66,7 @@ module M_S = (M : S)
 type M_S.foo += Foo (* ERROR: Cannot extend a type that isn't "open" *)
 ;;
 
-(* Check that signatures cannot add open-ness *)
+(* Check that signatures cannot add extensibility *)
 
 module M = struct type foo end
 ;;
@@ -84,6 +76,32 @@ module type S = sig type foo = .. end
 
 module M_S = (M : S) (* ERROR: Signatures are not compatible *)
 ;;
+
+(* Check that signatures can make exstensibility private *)
+
+module M = struct type foo = .. end
+;;
+
+module type S = sig type foo = private .. end
+;;
+
+module M_S = (M : S)
+;;
+
+type M_S.foo += Foo (* ERROR: Cannot extend a private extensible type *)
+;;
+
+(* Check that signatures cannot make private extensibility public *)
+
+module M = struct type foo = private .. end
+;;
+
+module type S = sig type foo = .. end
+;;
+
+module M_S = (M : S) (* ERROR: Signatures are not compatible *)
+;;
+
 
 (* Check that signatures maintain variances *)
 
@@ -115,3 +133,11 @@ let f = function
   | _::_::_ -> 3
   | [] -> 2
 ;; (* warn *)
+
+
+(* PR#7330: exhaustiveness with GADTs *)
+
+type t = ..
+type t += IPair : (int * int) -> t ;;
+
+let f = function IPair (i, j) -> Format.sprintf "(%d, %d)" i j ;; (* warn *)

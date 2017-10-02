@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*             Damien Doligez, projet Para, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*              Damien Doligez, projet Para, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 #define FREELIST_DEBUG 0
 #if FREELIST_DEBUG
@@ -78,25 +82,25 @@ static void fl_check (void)
   cur = Next (prev);
   while (cur != Val_NULL){
     size_found += Whsize_bp (cur);
-    Assert (Is_in_heap (cur));
+    CAMLassert (Is_in_heap (cur));
     if (cur == fl_prev) prev_found = 1;
     if (policy == Policy_first_fit && Wosize_bp (cur) > sz){
       sz = Wosize_bp (cur);
       if (flp_found < flp_size){
-        Assert (Next (flp[flp_found]) == cur);
+        CAMLassert (Next (flp[flp_found]) == cur);
         ++ flp_found;
       }else{
-        Assert (beyond == Val_NULL || cur >= Next (beyond));
+        CAMLassert (beyond == Val_NULL || cur >= Next (beyond));
       }
     }
     if (cur == caml_fl_merge) merge_found = 1;
     prev = cur;
     cur = Next (prev);
   }
-  if (policy == Policy_next_fit) Assert (prev_found || fl_prev == Fl_head);
-  if (policy == Policy_first_fit) Assert (flp_found == flp_size);
-  Assert (merge_found || caml_fl_merge == Fl_head);
-  Assert (size_found == caml_fl_cur_wsz);
+  if (policy == Policy_next_fit) CAMLassert (prev_found || fl_prev == Fl_head);
+  if (policy == Policy_first_fit) CAMLassert (flp_found == flp_size);
+  CAMLassert (merge_found || caml_fl_merge == Fl_head);
+  CAMLassert (size_found == caml_fl_cur_wsz);
 }
 
 #endif
@@ -119,11 +123,11 @@ static header_t *allocate_block (mlsize_t wh_sz, int flpi, value prev,
                                  value cur)
 {
   header_t h = Hd_bp (cur);
-                                             Assert (Whsize_hd (h) >= wh_sz);
+  CAMLassert (Whsize_hd (h) >= wh_sz);
   if (Wosize_hd (h) < wh_sz + 1){                        /* Cases 0 and 1. */
     caml_fl_cur_wsz -= Whsize_hd (h);
     Next (prev) = Next (cur);
-                  Assert (Is_in_heap (Next (prev)) || Next (prev) == Val_NULL);
+    CAMLassert (Is_in_heap (Next (prev)) || Next (prev) == Val_NULL);
     if (caml_fl_merge == cur) caml_fl_merge = prev;
 #ifdef DEBUG
     fl_last = Val_NULL;
@@ -148,6 +152,35 @@ static header_t *allocate_block (mlsize_t wh_sz, int flpi, value prev,
   return (header_t *) &Field (cur, Wosize_hd (h) - wh_sz);
 }
 
+#ifdef CAML_INSTR
+static uintnat instr_size [20] =
+  {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+static char *instr_name [20] = {
+  NULL,
+  "alloc01@",
+  "alloc02@",
+  "alloc03@",
+  "alloc04@",
+  "alloc05@",
+  "alloc06@",
+  "alloc07@",
+  "alloc08@",
+  "alloc09@",
+  "alloc10-19@",
+  "alloc20-29@",
+  "alloc30-39@",
+  "alloc40-49@",
+  "alloc50-59@",
+  "alloc60-69@",
+  "alloc70-79@",
+  "alloc80-89@",
+  "alloc90-99@",
+  "alloc_large@",
+};
+uintnat caml_instr_alloc_jump = 0;
+/* number of pointers followed to allocate from the free list */
+#endif /*CAML_INSTR*/
+
 /* [caml_fl_allocate] does not set the header of the newly allocated block.
    The calling function must do it before any GC function gets called.
    [caml_fl_allocate] returns a head pointer.
@@ -158,20 +191,34 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
   header_t *result;
   int i;
   mlsize_t sz, prevsz;
-                                  Assert (sizeof (char *) == sizeof (value));
-                                  Assert (wo_sz >= 1);
+  CAMLassert (sizeof (char *) == sizeof (value));
+  CAMLassert (wo_sz >= 1);
+#ifdef CAML_INSTR
+  if (wo_sz < 10){
+    ++instr_size[wo_sz];
+  }else if (wo_sz < 100){
+    ++instr_size[wo_sz/10 + 9];
+  }else{
+    ++instr_size[19];
+  }
+#endif /* CAML_INSTR */
+
   switch (policy){
   case Policy_next_fit:
-                                  Assert (fl_prev != Val_NULL);
+    CAMLassert (fl_prev != Val_NULL);
     /* Search from [fl_prev] to the end of the list. */
     prev = fl_prev;
     cur = Next (prev);
-    while (cur != Val_NULL){                         Assert (Is_in_heap (cur));
+    while (cur != Val_NULL){
+      CAMLassert (Is_in_heap (cur));
       if (Wosize_bp (cur) >= wo_sz){
         return allocate_block (Whsize_wosize (wo_sz), 0, prev, cur);
       }
       prev = cur;
       cur = Next (prev);
+#ifdef CAML_INSTR
+      ++ caml_instr_alloc_jump;
+#endif
     }
     fl_last = prev;
     /* Search from the start of the list to [fl_prev]. */
@@ -183,6 +230,9 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
       }
       prev = cur;
       cur = Next (prev);
+#ifdef CAML_INSTR
+      ++ caml_instr_alloc_jump;
+#endif
     }
     /* No suitable block was found. */
     return NULL;
@@ -250,10 +300,10 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
       prev = flp[flp_size - 1];
     }
     prevsz = Wosize_bp (Next (flp[FLP_MAX-1]));
-    Assert (prevsz < wo_sz);
+    CAMLassert (prevsz < wo_sz);
     cur = Next (prev);
     while (cur != Val_NULL){
-      Assert (Is_in_heap (cur));
+      CAMLassert (Is_in_heap (cur));
       sz = Wosize_bp (cur);
       if (sz < prevsz){
         beyond = cur;
@@ -268,7 +318,7 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
 
   update_flp: /* (i, sz) */
     /* The block at [i] was removed or reduced.  Update the table. */
-    Assert (0 <= i && i < flp_size + 1);
+    CAMLassert (0 <= i && i < flp_size + 1);
     if (i < flp_size){
       if (i > 0){
         prevsz = Wosize_bp (Next (flp[i-1]));
@@ -295,7 +345,7 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
             buf[j++] = prev;
             prevsz = sz;
             if (sz >= oldsz){
-              Assert (sz == oldsz);
+              CAMLassert (sz == oldsz);
               break;
             }
           }
@@ -331,7 +381,7 @@ header_t *caml_fl_allocate (mlsize_t wo_sz)
   break;
 
   default:
-    Assert (0);   /* unknown policy */
+    CAMLassert (0);   /* unknown policy */
     break;
   }
   return NULL;  /* NOT REACHED */
@@ -347,6 +397,13 @@ static header_t *last_fragment;
 
 void caml_fl_init_merge (void)
 {
+#ifdef CAML_INSTR
+  int i;
+  for (i = 1; i < 20; i++){
+    CAML_INSTR_INT (instr_name[i], instr_size[i]);
+    instr_size[i] = 0;
+  }
+#endif /* CAML_INSTR */
   last_fragment = NULL;
   caml_fl_merge = Fl_head;
 #ifdef DEBUG
@@ -378,7 +435,7 @@ void caml_fl_reset (void)
     truncate_flp (Fl_head);
     break;
   default:
-    Assert (0);
+    CAMLassert (0);
     break;
   }
   caml_fl_cur_wsz = 0;
@@ -403,8 +460,8 @@ header_t *caml_fl_merge_block (value bp)
   cur = Next (prev);
   /* The sweep code makes sure that this is the right place to insert
      this block: */
-  Assert (prev < bp || prev == Fl_head);
-  Assert (cur > bp || cur == Val_NULL);
+  CAMLassert (prev < bp || prev == Fl_head);
+  CAMLassert (cur > bp || cur == Val_NULL);
 
   if (policy == Policy_first_fit) truncate_flp (prev);
 
@@ -449,7 +506,7 @@ header_t *caml_fl_merge_block (value bp)
 #ifdef DEBUG
     Hd_val (bp) = Debug_free_major;
 #endif
-    Assert (caml_fl_merge == prev);
+    CAMLassert (caml_fl_merge == prev);
   }else if (Wosize_hd (hd) != 0){
     Hd_val (bp) = Bluehd_hd (hd);
     Next (bp) = cur;
@@ -477,8 +534,8 @@ header_t *caml_fl_merge_block (value bp)
 */
 void caml_fl_add_blocks (value bp)
 {
-                                                   Assert (fl_last != Val_NULL);
-                                            Assert (Next (fl_last) == Val_NULL);
+  CAMLassert (fl_last != Val_NULL);
+  CAMLassert (Next (fl_last) == Val_NULL);
   caml_fl_cur_wsz += Whsize_bp (bp);
 
   if (bp > fl_last){
@@ -495,12 +552,13 @@ void caml_fl_add_blocks (value bp)
     prev = Fl_head;
     cur = Next (prev);
     while (cur != Val_NULL && cur < bp){
-      Assert (prev < bp || prev == Fl_head);
+      CAMLassert (prev < bp || prev == Fl_head);
       /* XXX TODO: extend flp on the fly */
       prev = cur;
       cur = Next (prev);
-    }                                  Assert (prev < bp || prev == Fl_head);
-                                       Assert (cur > bp || cur == Val_NULL);
+    }
+    CAMLassert (prev < bp || prev == Fl_head);
+    CAMLassert (cur > bp || cur == Val_NULL);
     Next (Field (bp, 1)) = cur;
     Next (prev) = bp;
     /* When inserting blocks between [caml_fl_merge] and [caml_gc_sweep_hp],
@@ -533,7 +591,8 @@ void caml_make_free_blocks (value *p, mlsize_t size, int do_merge, int color)
     }else{
       sz = size;
     }
-    *(header_t *)p = Make_header (Wosize_whsize (sz), 0, color);
+    *(header_t *)p =
+      Make_header (Wosize_whsize (sz), 0, color);
     if (do_merge) caml_fl_merge_block (Val_hp (p));
     size -= sz;
     p += sz;

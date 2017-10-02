@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Callbacks from C to OCaml */
 
@@ -65,7 +69,7 @@ CAMLexport value caml_callbackN_exn(value closure, int narg, value args[])
   opcode_t local_callback_code[7];
 #endif
 
-  Assert(narg + 4 <= 256);
+  CAMLassert(narg + 4 <= 256);
 
   caml_extern_sp -= narg + 4;
   for (i = 0; i < narg; i++) caml_extern_sp[i] = args[i]; /* arguments */
@@ -215,7 +219,7 @@ static unsigned int hash_value_name(char const *name)
 CAMLprim value caml_register_named_value(value vname, value val)
 {
   struct named_value * nv;
-  char * name = String_val(vname);
+  const char * name = String_val(vname);
   size_t namelen = strlen(name);
   unsigned int h = hash_value_name(name);
 

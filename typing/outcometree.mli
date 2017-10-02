@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*     Daniel de Rauglaudre, projet Cristal, INRIA Rocquencourt        *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*      Daniel de Rauglaudre, projet Cristal, INRIA Rocquencourt          *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Module [Outcometree]: results displayed by the toplevel *)
 
@@ -23,6 +26,10 @@ type out_ident =
   | Oide_apply of out_ident * out_ident
   | Oide_dot of out_ident * string
   | Oide_ident of string
+
+type out_string =
+  | Ostr_string
+  | Ostr_bytes
 
 type out_attribute =
   { oattr_name: string }
@@ -40,7 +47,7 @@ type out_value =
   | Oval_list of out_value list
   | Oval_printer of (Format.formatter -> unit)
   | Oval_record of (out_ident * out_value) list
-  | Oval_string of string
+  | Oval_string of string * int * out_string (* string, size-to-print, kind *)
   | Oval_stuff of string
   | Oval_tuple of out_value list
   | Oval_variant of string * out_value option
@@ -67,7 +74,7 @@ type out_type =
 
 and out_variant =
   | Ovar_fields of (string * bool * out_type list) list
-  | Ovar_name of out_ident * out_type list
+  | Ovar_typ of out_type
 
 type out_class_type =
   | Octy_constr of out_ident * out_type list
@@ -102,6 +109,8 @@ and out_type_decl =
     otype_params: (string * (bool * bool)) list;
     otype_type: out_type;
     otype_private: Asttypes.private_flag;
+    otype_immediate: bool;
+    otype_unboxed: bool;
     otype_cstrs: (out_type * out_type) list }
 and out_extension_constructor =
   { oext_name: string;

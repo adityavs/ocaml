@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Inclusion checks for the module language *)
 
@@ -16,12 +19,19 @@ open Typedtree
 open Types
 open Format
 
-val modtypes: Env.t -> module_type -> module_type -> module_coercion
+val modtypes:
+  loc:Location.t -> Env.t ->
+  module_type -> module_type -> module_coercion
+
 val signatures: Env.t -> signature -> signature -> module_coercion
+
 val compunit:
       Env.t -> string -> signature -> string -> signature -> module_coercion
+
 val type_declarations:
-      Env.t -> Ident.t -> type_declaration -> type_declaration -> unit
+  loc:Location.t -> Env.t ->
+  Ident.t -> type_declaration -> type_declaration -> unit
+
 val print_coercion: formatter -> module_coercion -> unit
 
 type symptom =

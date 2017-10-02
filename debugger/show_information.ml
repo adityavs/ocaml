@@ -1,15 +1,18 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*          Jerome Vouillon, projet Cristal, INRIA Rocquencourt        *)
-(*          OCaml port by John Malecki and Xavier Leroy                *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*           Jerome Vouillon, projet Cristal, INRIA Rocquencourt          *)
+(*           OCaml port by John Malecki and Xavier Leroy                  *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Instruct
 open Format
@@ -85,7 +88,7 @@ let show_one_frame framenum ppf event =
            (pos.Lexing.pos_cnum - pos.Lexing.pos_bol + 1)
 
 (* Display information about the current frame. *)
-(* --- `select frame' must have succeded before calling this function. *)
+(* --- `select frame' must have succeeded before calling this function. *)
 let show_current_frame ppf selected =
   match !selected_event with
   | None ->

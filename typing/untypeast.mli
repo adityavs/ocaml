@@ -1,12 +1,15 @@
 (**************************************************************************)
 (*                                                                        *)
-(*                                OCaml                                   *)
+(*                                 OCaml                                  *)
 (*                                                                        *)
 (*      Thomas Gazagnaire (OCamlPro), Fabrice Le Fessant (INRIA Saclay)   *)
 (*                                                                        *)
 (*   Copyright 2007 Institut National de Recherche en Informatique et     *)
-(*   en Automatique.  All rights reserved.  This file is distributed      *)
-(*   under the terms of the Q Public License version 1.0.                 *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
 (*                                                                        *)
 (**************************************************************************)
 
@@ -52,6 +55,7 @@ type mapper = {
   open_description: mapper -> Typedtree.open_description -> open_description;
   pat: mapper -> Typedtree.pattern -> pattern;
   row_field: mapper -> Typedtree.row_field -> row_field;
+  object_field: mapper -> Typedtree.object_field -> object_field;
   signature: mapper -> Typedtree.signature -> signature;
   signature_item: mapper -> Typedtree.signature_item -> signature_item;
   structure: mapper -> Typedtree.structure -> structure;
@@ -71,3 +75,5 @@ val default_mapper : mapper
 
 val untype_structure : ?mapper:mapper -> Typedtree.structure -> structure
 val untype_signature : ?mapper:mapper -> Typedtree.signature -> signature
+
+val constant : Asttypes.constant -> Parsetree.constant

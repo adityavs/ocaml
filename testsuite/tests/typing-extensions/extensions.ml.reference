@@ -1,23 +1,29 @@
 
+#   - : unit = ()
 #     type foo = ..
 #         type foo += A | B of int
 #           val is_a : foo -> bool = <fun>
 #         type foo
-#     Characters 13-21:
+#     Characters 1-21:
   type foo += A of int (* Error type is not open *)
+  ^^^^^^^^^^^^^^^^^^^^
+Error: Type definition foo is not extensible
+#         type foo = private ..
+#     Characters 13-21:
+  type foo += A of int (* Error type is private *)
               ^^^^^^^^
-Error: Cannot extend type definition foo
+Error: Cannot extend private type definition foo
 #         type 'a foo = ..
 #     Characters 1-30:
   type ('a, 'b) foo += A of int (* Error: type parameter mismatch *)
   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 Error: This extension does not match the definition of type foo
        They have different arities.
-#                 module type S = sig type foo type foo += A of float end
-#                 Characters 84-106:
-    type foo += B of float (* Error foo does not have an extensible type *)
+#                 module type S = sig type foo = private .. type foo += A of float end
+#                 Characters 73-95:
+    type foo += B of float (* Error: foo does not have an extensible type *)
     ^^^^^^^^^^^^^^^^^^^^^^
-Error: Type foo is not extensible
+Error: Type definition foo is not extensible
 #         type foo = ..
 #                     module M :
   sig
@@ -70,11 +76,11 @@ Error: The constructor M.A1 has type foo but was expected to be of type bar
   type foo += B3 = M.B1  (* Error: rebind private extension *)
                    ^^^^
 Error: The constructor M.B1 is private
-#     Characters 13-24:
+#     Characters 17-24:
   type foo += C = Unknown  (* Error: unbound extension *)
-              ^^^^^^^^^^^
+                  ^^^^^^^
 Error: Unbound constructor Unknown
-#                       module M : sig type foo type foo += A1 of int end
+#                       module M : sig type foo = private .. type foo += A1 of int end
 type M.foo += A2 of int
 type 'a foo = ..
 #     type 'a foo1 = 'a foo = ..
@@ -119,6 +125,8 @@ Error: This extension does not match the definition of type bar
 #     val y : exn * exn = (Foo (3, _), Bar (Some 5))
 #         type foo = ..
 #         type foo += Foo | Bar of int
+#   val extension_name : 'a -> string = <fun>
+# val extension_id : 'a -> int = <fun>
 #     val n1 : string = "Foo"
 #     val n2 : string = "Bar"
 #     val t : bool = true
@@ -126,6 +134,6 @@ Error: This extension does not match the definition of type bar
 #         val is_foo : 'a -> bool = <fun>
 type foo += Foo
 #     val f : bool = false
-#     Exception: Invalid_argument "Obj.extension_name".
-#     Exception: Invalid_argument "Obj.extension_id".
+#     Exception: Invalid_argument "Obj.extension_constructor".
+#     Exception: Invalid_argument "Obj.extension_constructor".
 # 

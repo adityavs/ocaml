@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                  Fabrice Le Fessant, INRIA Saclay                   *)
-(*                                                                     *)
-(*  Copyright 2012 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                   Fabrice Le Fessant, INRIA Saclay                     *)
+(*                                                                        *)
+(*   Copyright 2012 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Cmi_format
 open Typedtree
@@ -161,41 +164,33 @@ let record_value_dependency vd1 vd2 =
   if vd1.Types.val_loc <> vd2.Types.val_loc then
     value_deps := (vd1, vd2) :: !value_deps
 
-let save_cmt filename modname binary_annots sourcefile initial_env sg =
+let save_cmt filename modname binary_annots sourcefile initial_env cmi =
   if !Clflags.binary_annotations && not !Clflags.print_types then begin
-    let imports = Env.imports () in
-    let oc = open_out_bin filename in
-    let this_crc =
-      match sg with
-          None -> None
-        | Some (sg) ->
-          let cmi = {
-            cmi_name = modname;
-            cmi_sign = sg;
-            cmi_flags =
-            if !Clflags.recursive_types then [Cmi_format.Rectypes] else [];
-            cmi_crcs = imports;
-          } in
-          Some (output_cmi filename oc cmi)
-    in
-    let source_digest = Misc.may_map Digest.file sourcefile in
-    let cmt = {
-      cmt_modname = modname;
-      cmt_annots = clear_env binary_annots;
-      cmt_value_dependencies = !value_deps;
-      cmt_comments = Lexer.comments ();
-      cmt_args = Sys.argv;
-      cmt_sourcefile = sourcefile;
-      cmt_builddir =  Sys.getcwd ();
-      cmt_loadpath = !Config.load_path;
-      cmt_source_digest = source_digest;
-      cmt_initial_env = if need_to_clear_env then
-          keep_only_summary initial_env else initial_env;
-      cmt_imports = List.sort compare imports;
-      cmt_interface_digest = this_crc;
-      cmt_use_summaries = need_to_clear_env;
-    } in
-    output_cmt oc cmt;
-    close_out oc;
+    Misc.output_to_file_via_temporary
+       ~mode:[Open_binary] filename
+       (fun temp_file_name oc ->
+         let this_crc =
+           match cmi with
+           | None -> None
+           | Some cmi -> Some (output_cmi temp_file_name oc cmi)
+         in
+         let source_digest = Misc.may_map Digest.file sourcefile in
+         let cmt = {
+           cmt_modname = modname;
+           cmt_annots = clear_env binary_annots;
+           cmt_value_dependencies = !value_deps;
+           cmt_comments = Lexer.comments ();
+           cmt_args = Sys.argv;
+           cmt_sourcefile = sourcefile;
+           cmt_builddir =  Sys.getcwd ();
+           cmt_loadpath = !Config.load_path;
+           cmt_source_digest = source_digest;
+           cmt_initial_env = if need_to_clear_env then
+               keep_only_summary initial_env else initial_env;
+           cmt_imports = List.sort compare (Env.imports ());
+           cmt_interface_digest = this_crc;
+           cmt_use_summaries = need_to_clear_env;
+         } in
+         output_cmt oc cmt)
   end;
   clear ()

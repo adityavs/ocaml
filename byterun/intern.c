@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Structured input, compact format */
 
@@ -19,6 +23,7 @@
 #include <stdio.h>
 #include "caml/alloc.h"
 #include "caml/callback.h"
+#include "caml/config.h"
 #include "caml/custom.h"
 #include "caml/fail.h"
 #include "caml/gc.h"
@@ -29,10 +34,6 @@
 #include "caml/mlvalues.h"
 #include "caml/misc.h"
 #include "caml/reverse.h"
-
-#ifdef _MSC_VER
-#define inline _inline
-#endif
 
 static unsigned char * intern_src;
 /* Reading pointer in block holding input data. */
@@ -139,7 +140,7 @@ static void intern_init(void * src, void * input)
   /* This is asserted at the beginning of demarshaling primitives.
      If it fails, it probably means that an exception was raised
      without calling intern_cleanup() during the previous demarshaling. */
-  Assert (intern_input == NULL && intern_obj_table == NULL \
+  CAMLassert (intern_input == NULL && intern_obj_table == NULL \
      && intern_extra_block == NULL && intern_block == 0);
   intern_src = src;
   intern_input = input;
@@ -255,7 +256,7 @@ static struct intern_item * intern_stack_limit = intern_stack_init
 static void intern_free_stack(void)
 {
   if (intern_stack != intern_stack_init) {
-    free(intern_stack);
+    caml_stat_free(intern_stack);
     /* Reinitialize the globals for next time around */
     intern_stack = intern_stack_init;
     intern_stack_limit = intern_stack + INTERN_STACK_INIT_SIZE;
@@ -265,7 +266,7 @@ static void intern_free_stack(void)
 /* Same, then raise Out_of_memory */
 static void intern_stack_overflow(void)
 {
-  caml_gc_message (0x04, "Stack overflow in un-marshaling value\n", 0);
+  caml_gc_message (0x04, "Stack overflow in un-marshaling value\n");
   intern_free_stack();
   caml_raise_out_of_memory();
 }
@@ -278,13 +279,13 @@ static struct intern_item * intern_resize_stack(struct intern_item * sp)
 
   if (newsize >= INTERN_STACK_MAX_SIZE) intern_stack_overflow();
   if (intern_stack == intern_stack_init) {
-    newstack = malloc(sizeof(struct intern_item) * newsize);
+    newstack = caml_stat_alloc_noexc(sizeof(struct intern_item) * newsize);
     if (newstack == NULL) intern_stack_overflow();
     memcpy(newstack, intern_stack_init,
            sizeof(struct intern_item) * INTERN_STACK_INIT_SIZE);
   } else {
-    newstack =
-      realloc(intern_stack, sizeof(struct intern_item) * newsize);
+    newstack = caml_stat_resize_noexc(intern_stack,
+                                      sizeof(struct intern_item) * newsize);
     if (newstack == NULL) intern_stack_overflow();
   }
   intern_stack = newstack;
@@ -364,11 +365,11 @@ static void intern_rec(value *dest)
       } else {
         v = Val_hp(intern_dest);
         if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-        *intern_dest = Make_header(size, tag, intern_color);
+        *intern_dest = Make_header_allocated_here(size, tag, intern_color);
         intern_dest += 1 + size;
         /* For objects, we need to freshen the oid */
         if (tag == Object_tag) {
-          Assert(size >= 2);
+          CAMLassert(size >= 2);
           /* Request to read rest of the elements of the block */
           ReadItems(&Field(v, 2), size - 2);
           /* Request freshing OID */
@@ -394,12 +395,12 @@ static void intern_rec(value *dest)
       size = (len + sizeof(value)) / sizeof(value);
       v = Val_hp(intern_dest);
       if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-      *intern_dest = Make_header(size, String_tag, intern_color);
+      *intern_dest = Make_header_allocated_here(size, String_tag, intern_color);
       intern_dest += 1 + size;
       Field(v, size - 1) = 0;
       ofs_ind = Bsize_wsize(size) - 1;
       Byte(v, ofs_ind) = ofs_ind - len;
-      readblock(String_val(v), len);
+      readblock((char *)String_val(v), len);
     } else {
       switch(code) {
       case CODE_INT8:
@@ -423,9 +424,9 @@ static void intern_rec(value *dest)
       case CODE_SHARED8:
         ofs = read8u();
       read_shared:
-        Assert (ofs > 0);
-        Assert (ofs <= obj_counter);
-        Assert (intern_obj_table != NULL);
+        CAMLassert (ofs > 0);
+        CAMLassert (ofs <= obj_counter);
+        CAMLassert (intern_obj_table != NULL);
         v = intern_obj_table[obj_counter - ofs];
         break;
       case CODE_SHARED16:
@@ -466,7 +467,8 @@ static void intern_rec(value *dest)
       case CODE_DOUBLE_BIG:
         v = Val_hp(intern_dest);
         if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-        *intern_dest = Make_header(Double_wosize, Double_tag, intern_color);
+        *intern_dest = Make_header_allocated_here(Double_wosize, Double_tag,
+                                                  intern_color);
         intern_dest += 1 + Double_wosize;
         readfloat((double *) v, code);
         break;
@@ -477,7 +479,8 @@ static void intern_rec(value *dest)
         size = len * Double_wosize;
         v = Val_hp(intern_dest);
         if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-        *intern_dest = Make_header(size, Double_array_tag, intern_color);
+        *intern_dest = Make_header_allocated_here(size, Double_array_tag,
+                                                  intern_color);
         intern_dest += 1 + size;
         readfloats((double *) v, len, code);
         break;
@@ -528,16 +531,13 @@ static void intern_rec(value *dest)
         size = 1 + (size + sizeof(value) - 1) / sizeof(value);
         v = Val_hp(intern_dest);
         if (intern_obj_table != NULL) intern_obj_table[obj_counter++] = v;
-        *intern_dest = Make_header(size, Custom_tag, intern_color);
+        *intern_dest = Make_header_allocated_here(size, Custom_tag,
+                                                  intern_color);
         Custom_ops_val(v) = ops;
 
         if (ops->finalize != NULL && Is_young(v)) {
-          /* Remembered that the block has a finalizer */
-          if (caml_finalize_table.ptr >= caml_finalize_table.limit){
-            CAMLassert (caml_finalize_table.ptr == caml_finalize_table.limit);
-            caml_realloc_ref_table (&caml_finalize_table);
-          }
-          *caml_finalize_table.ptr++ = (value *)v;
+          /* Remember that the block has a finalizer. */
+          add_to_custom_table (&caml_custom_table, v, 0, 1);
         }
 
         intern_dest += 1 + size;
@@ -552,24 +552,25 @@ static void intern_rec(value *dest)
   *dest = v;
   break;
   default:
-    Assert(0);
+    CAMLassert(0);
   }
   }
   /* We are done. Cleanup the stack and leave the function */
   intern_free_stack();
 }
 
-static void intern_alloc(mlsize_t whsize, mlsize_t num_objects)
+static void intern_alloc(mlsize_t whsize, mlsize_t num_objects,
+      int outside_heap)
 {
   mlsize_t wosize;
 
   if (whsize == 0) {
-    Assert (intern_extra_block == NULL && intern_block == 0
+    CAMLassert (intern_extra_block == NULL && intern_block == 0
          && intern_obj_table == NULL);
     return;
   }
   wosize = Wosize_whsize(whsize);
-  if (wosize > Max_wosize) {
+  if (outside_heap || wosize > Max_wosize) {
     /* Round desired size up to next page */
     asize_t request =
       ((Bsize_wsize(whsize) + Page_size - 1) >> Page_log) << Page_log;
@@ -578,19 +579,22 @@ static void intern_alloc(mlsize_t whsize, mlsize_t num_objects)
       intern_cleanup();
       caml_raise_out_of_memory();
     }
-    intern_color = caml_allocation_color(intern_extra_block);
+    intern_color =
+      outside_heap ? Caml_black : caml_allocation_color(intern_extra_block);
     intern_dest = (header_t *) intern_extra_block;
-    Assert (intern_block == 0);
+    CAMLassert (intern_block == 0);
   } else {
     /* this is a specialised version of caml_alloc from alloc.c */
-    if (wosize == 0){
-      intern_block = Atom (String_tag);
-    }else if (wosize <= Max_young_wosize){
-      intern_block = caml_alloc_small (wosize, String_tag);
+    if (wosize <= Max_young_wosize){
+      if (wosize == 0){
+        intern_block = Atom (String_tag);
+      } else {
+        intern_block = caml_alloc_small (wosize, String_tag);
+      }
     }else{
       intern_block = caml_alloc_shr_no_raise (wosize, String_tag);
       /* do not do the urgent_gc check here because it might darken
-         intern_block into gray and break the Assert 3 lines down */
+         intern_block into gray and break the intern_color assertion below */
       if (intern_block == 0) {
         intern_cleanup();
         caml_raise_out_of_memory();
@@ -598,19 +602,19 @@ static void intern_alloc(mlsize_t whsize, mlsize_t num_objects)
     }
     intern_header = Hd_val(intern_block);
     intern_color = Color_hd(intern_header);
-    Assert (intern_color == Caml_white || intern_color == Caml_black);
+    CAMLassert (intern_color == Caml_white || intern_color == Caml_black);
     intern_dest = (header_t *) Hp_val(intern_block);
-    Assert (intern_extra_block == NULL);
+    CAMLassert (intern_extra_block == NULL);
   }
   obj_counter = 0;
   if (num_objects > 0) {
-    intern_obj_table = (value *) malloc(num_objects * sizeof(value));
+    intern_obj_table = (value *) caml_stat_alloc_noexc(num_objects * sizeof(value));
     if (intern_obj_table == NULL) {
       intern_cleanup();
       caml_raise_out_of_memory();
     }
   } else
-    Assert(intern_obj_table == NULL);
+    CAMLassert(intern_obj_table == NULL);
 }
 
 static void intern_add_to_heap(mlsize_t whsize)
@@ -618,12 +622,11 @@ static void intern_add_to_heap(mlsize_t whsize)
   /* Add new heap chunk to heap if needed */
   if (intern_extra_block != NULL) {
     /* If heap chunk not filled totally, build free block at end */
-    asize_t request =
-      ((Bsize_wsize(whsize) + Page_size - 1) >> Page_log) << Page_log;
+    asize_t request = Chunk_size (intern_extra_block);
     header_t * end_extra_block =
       (header_t *) intern_extra_block + Wsize_bsize(request);
-    Assert(intern_block == 0);
-    Assert(intern_dest <= end_extra_block);
+    CAMLassert(intern_block == 0);
+    CAMLassert(intern_dest <= end_extra_block);
     if (intern_dest < end_extra_block){
       caml_make_free_blocks ((value *) intern_dest,
                              end_extra_block - intern_dest, 0, Caml_white);
@@ -675,7 +678,7 @@ static void caml_parse_header(char * fun_name,
     h->whsize = read64u();
 #else
     errmsg[sizeof(errmsg) - 1] = 0;
-    snprintf(errmsg, sizeof(errmsg) - 1, 
+    snprintf(errmsg, sizeof(errmsg) - 1,
              "%s: object too large to be read back on a 32-bit platform",
              fun_name);
     caml_failwith(errmsg);
@@ -683,7 +686,7 @@ static void caml_parse_header(char * fun_name,
     break;
   default:
     errmsg[sizeof(errmsg) - 1] = 0;
-    snprintf(errmsg, sizeof(errmsg) - 1, 
+    snprintf(errmsg, sizeof(errmsg) - 1,
              "%s: bad object",
              fun_name);
     caml_failwith(errmsg);
@@ -692,8 +695,9 @@ static void caml_parse_header(char * fun_name,
 
 /* Reading from a channel */
 
-value caml_input_val(struct channel *chan)
+static value caml_input_val_core(struct channel *chan, int outside_heap)
 {
+  intnat r;
   char header[32];
   struct marshal_header h;
   char * block;
@@ -702,12 +706,15 @@ value caml_input_val(struct channel *chan)
   if (! caml_channel_binary_mode(chan))
     caml_failwith("input_value: not a binary channel");
   /* Read and parse the header */
-  if (caml_really_getblock(chan, header, 20) == 0)
+  r = caml_really_getblock(chan, header, 20);
+  if (r == 0)
+    caml_raise_end_of_file();
+  else if (r < 20)
     caml_failwith("input_value: truncated object");
   intern_src = (unsigned char *) header;
   if (read32u() == Intext_magic_number_big) {
     /* Finish reading the header */
-    if (caml_really_getblock(chan, header + 20, 32 - 20) == 0)
+    if (caml_really_getblock(chan, header + 20, 32 - 20) < 32 - 20)
       caml_failwith("input_value: truncated object");
   }
   intern_src = (unsigned char *) header;
@@ -718,19 +725,30 @@ value caml_input_val(struct channel *chan)
      can take place (via signal handlers or context switching in systhreads),
      and [intern_input] may change.  So, wait until [caml_really_getblock]
      is over before using [intern_input] and the other global vars. */
-  if (caml_really_getblock(chan, block, h.data_len) == 0) {
+  if (caml_really_getblock(chan, block, h.data_len) < h.data_len) {
     caml_stat_free(block);
     caml_failwith("input_value: truncated object");
   }
   /* Initialize global state */
   intern_init(block, block);
-  intern_alloc(h.whsize, h.num_objects);
+  intern_alloc(h.whsize, h.num_objects, outside_heap);
   /* Fill it in */
   intern_rec(&res);
-  intern_add_to_heap(h.whsize);
+  if (!outside_heap) {
+    intern_add_to_heap(h.whsize);
+  } else {
+    caml_disown_for_heap(intern_extra_block);
+    intern_extra_block = NULL;
+    intern_block = 0;
+  }
   /* Free everything */
   intern_cleanup();
   return caml_check_urgent_gc(res);
+}
+
+value caml_input_val(struct channel* chan)
+{
+  return caml_input_val_core(chan, 0);
 }
 
 CAMLprim value caml_input_value(value vchan)
@@ -747,6 +765,18 @@ CAMLprim value caml_input_value(value vchan)
 
 /* Reading from memory-resident blocks */
 
+CAMLprim value caml_input_value_to_outside_heap(value vchan)
+{
+  CAMLparam1 (vchan);
+  struct channel * chan = Channel(vchan);
+  CAMLlocal1 (res);
+
+  Lock(chan);
+  res = caml_input_val_core(chan, 1);
+  Unlock(chan);
+  CAMLreturn (res);
+}
+
 CAMLexport value caml_input_val_from_string(value str, intnat ofs)
 {
   CAMLparam1 (str);
@@ -759,7 +789,7 @@ CAMLexport value caml_input_val_from_string(value str, intnat ofs)
   if (ofs + h.header_len + h.data_len > caml_string_length(str))
     caml_failwith("input_val_from_string: bad length");
   /* Allocate result */
-  intern_alloc(h.whsize, h.num_objects);
+  intern_alloc(h.whsize, h.num_objects, 0);
   intern_src = &Byte_u(str, ofs + h.header_len); /* If a GC occurred */
   /* Fill it in */
   intern_rec(&obj);
@@ -778,7 +808,7 @@ static value input_val_from_block(struct marshal_header * h)
 {
   value obj;
   /* Allocate result */
-  intern_alloc(h->whsize, h->num_objects);
+  intern_alloc(h->whsize, h->num_objects, 0);
   /* Fill it in */
   intern_rec(&obj);
   intern_add_to_heap(h->whsize);
@@ -815,7 +845,7 @@ CAMLexport value caml_input_value_from_block(char * data, intnat len)
    result is a [value] that represents a number of bytes
    To handle both the small and the big format,
    we assume 20 bytes are available at [buff + ofs],
-   and we return the data size + the length of the part of the header 
+   and we return the data size + the length of the part of the header
    that remains to be read. */
 
 CAMLprim value caml_marshal_data_size(value buff, value ofs)

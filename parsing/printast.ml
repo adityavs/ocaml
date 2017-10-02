@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*             Damien Doligez, projet Para, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1999 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*              Damien Doligez, projet Para, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1999 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Asttypes;;
 open Format;;
@@ -41,25 +44,26 @@ let rec fmt_longident_aux f x =
 
 let fmt_longident f x = fprintf f "\"%a\"" fmt_longident_aux x;;
 
-let fmt_longident_loc f x =
+let fmt_longident_loc f (x : Longident.t loc) =
   fprintf f "\"%a\" %a" fmt_longident_aux x.txt fmt_location x.loc;
 ;;
 
-let fmt_string_loc f x =
+let fmt_string_loc f (x : string loc) =
   fprintf f "\"%s\" %a" x.txt fmt_location x.loc;
 ;;
 
+let fmt_char_option f = function
+  | None -> fprintf f "None"
+  | Some c -> fprintf f "Some %c" c
+
 let fmt_constant f x =
   match x with
-  | Const_int (i) -> fprintf f "Const_int %d" i;
-  | Const_char (c) -> fprintf f "Const_char %02x" (Char.code c);
-  | Const_string (s, None) -> fprintf f "Const_string(%S,None)" s;
-  | Const_string (s, Some delim) ->
-      fprintf f "Const_string (%S,Some %S)" s delim;
-  | Const_float (s) -> fprintf f "Const_float %s" s;
-  | Const_int32 (i) -> fprintf f "Const_int32 %ld" i;
-  | Const_int64 (i) -> fprintf f "Const_int64 %Ld" i;
-  | Const_nativeint (i) -> fprintf f "Const_nativeint %nd" i;
+  | Pconst_integer (i,m) -> fprintf f "PConst_int (%s,%a)" i fmt_char_option m;
+  | Pconst_char (c) -> fprintf f "PConst_char %02x" (Char.code c);
+  | Pconst_string (s, None) -> fprintf f "PConst_string(%S,None)" s;
+  | Pconst_string (s, Some delim) ->
+      fprintf f "PConst_string (%S,Some %S)" s delim;
+  | Pconst_float (s,m) -> fprintf f "PConst_float (%s,%a)" s fmt_char_option m;
 ;;
 
 let fmt_mutable_flag f x =
@@ -159,13 +163,16 @@ let rec core_type i ppf x =
   | Ptyp_object (l, c) ->
       line i ppf "Ptyp_object %a\n" fmt_closed_flag c;
       let i = i + 1 in
-      List.iter
-        (fun (s, attrs, t) ->
-          line i ppf "method %s\n" s;
-          attributes i ppf attrs;
-          core_type (i + 1) ppf t
-        )
-        l
+      List.iter (
+        function
+          | Otag (l, attrs, t) ->
+            line i ppf "method %s\n" l.txt;
+            attributes i ppf attrs;
+            core_type (i + 1) ppf t
+          | Oinherit ct ->
+              line i ppf "Oinherit\n";
+              core_type (i + 1) ppf ct
+      ) l
   | Ptyp_class (li, l) ->
       line i ppf "Ptyp_class %a\n" fmt_longident_loc li;
       list i core_type ppf l
@@ -174,7 +181,7 @@ let rec core_type i ppf x =
       core_type i ppf ct;
   | Ptyp_poly (sl, ct) ->
       line i ppf "Ptyp_poly%a\n"
-        (fun ppf -> List.iter (fun x -> fprintf ppf " '%s" x)) sl;
+        (fun ppf -> List.iter (fun x -> fprintf ppf " '%s" x.txt)) sl;
       core_type i ppf ct;
   | Ptyp_package (s, l) ->
       line i ppf "Ptyp_package %a\n" fmt_longident_loc s;
@@ -233,6 +240,9 @@ and pattern i ppf x =
       line i ppf "Ppat_unpack %a\n" fmt_string_loc s;
   | Ppat_exception p ->
       line i ppf "Ppat_exception\n";
+      pattern i ppf p
+  | Ppat_open (m,p) ->
+      line i ppf "Ppat_open \"%a\"\n" fmt_longident_loc m;
       pattern i ppf p
   | Ppat_extension (s, arg) ->
       line i ppf "Ppat_extension \"%s\"\n" s.txt;
@@ -324,7 +334,7 @@ and expression i ppf x =
       option i core_type ppf cto1;
       core_type i ppf cto2;
   | Pexp_send (e, s) ->
-      line i ppf "Pexp_send \"%s\"\n" s;
+      line i ppf "Pexp_send \"%s\"\n" s.txt;
       expression i ppf e;
   | Pexp_new (li) -> line i ppf "Pexp_new %a\n" fmt_longident_loc li;
   | Pexp_setinstvar (s, e) ->
@@ -336,6 +346,10 @@ and expression i ppf x =
   | Pexp_letmodule (s, me, e) ->
       line i ppf "Pexp_letmodule %a\n" fmt_string_loc s;
       module_expr i ppf me;
+      expression i ppf e;
+  | Pexp_letexception (cd, e) ->
+      line i ppf "Pexp_letexception\n";
+      extension_constructor i ppf cd;
       expression i ppf e;
   | Pexp_assert (e) ->
       line i ppf "Pexp_assert\n";
@@ -351,7 +365,7 @@ and expression i ppf x =
       line i ppf "Pexp_object\n";
       class_structure i ppf s
   | Pexp_newtype (s, e) ->
-      line i ppf "Pexp_newtype \"%s\"\n" s;
+      line i ppf "Pexp_newtype \"%s\"\n" s.txt;
       expression i ppf e
   | Pexp_pack me ->
       line i ppf "Pexp_pack\n";
@@ -401,6 +415,7 @@ and attributes i ppf l =
 
 and payload i ppf = function
   | PStr x -> structure i ppf x
+  | PSig x -> signature i ppf x
   | PTyp x -> core_type i ppf x
   | PPat (x, None) -> pattern i ppf x
   | PPat (x, Some g) ->
@@ -470,6 +485,10 @@ and class_type i ppf x =
   | Pcty_extension (s, arg) ->
       line i ppf "Pcty_extension \"%s\"\n" s.txt;
       payload i ppf arg
+  | Pcty_open (ovf, m, e) ->
+      line i ppf "Pcty_open %a \"%a\"\n" fmt_override_flag ovf
+        fmt_longident_loc m;
+      class_type i ppf e
 
 and class_signature i ppf cs =
   line i ppf "class_signature\n";
@@ -485,11 +504,11 @@ and class_type_field i ppf x =
       line i ppf "Pctf_inherit\n";
       class_type i ppf ct;
   | Pctf_val (s, mf, vf, ct) ->
-      line i ppf "Pctf_val \"%s\" %a %a\n" s fmt_mutable_flag mf
+      line i ppf "Pctf_val \"%s\" %a %a\n" s.txt fmt_mutable_flag mf
            fmt_virtual_flag vf;
       core_type (i+1) ppf ct;
   | Pctf_method (s, pf, vf, ct) ->
-      line i ppf "Pctf_method \"%s\" %a %a\n" s fmt_private_flag pf
+      line i ppf "Pctf_method \"%s\" %a %a\n" s.txt fmt_private_flag pf
            fmt_virtual_flag vf;
       core_type (i+1) ppf ct;
   | Pctf_constraint (ct1, ct2) ->
@@ -557,6 +576,10 @@ and class_expr i ppf x =
   | Pcl_extension (s, arg) ->
       line i ppf "Pcl_extension \"%s\"\n" s.txt;
       payload i ppf arg
+  | Pcl_open (ovf, m, e) ->
+      line i ppf "Pcl_open %a \"%a\"\n" fmt_override_flag ovf
+        fmt_longident_loc m;
+      class_expr i ppf e
 
 and class_structure i ppf { pcstr_self = p; pcstr_fields = l } =
   line i ppf "class_structure\n";
@@ -571,7 +594,7 @@ and class_field i ppf x =
   | Pcf_inherit (ovf, ce, so) ->
       line i ppf "Pcf_inherit %a\n" fmt_override_flag ovf;
       class_expr (i+1) ppf ce;
-      option (i+1) string ppf so;
+      option (i+1) string_loc ppf so;
   | Pcf_val (s, mf, k) ->
       line i ppf "Pcf_val %a\n" fmt_mutable_flag mf;
       line (i+1) ppf "%a\n" fmt_string_loc s;
@@ -699,17 +722,17 @@ and with_constraint i ppf x =
   | Pwith_type (lid, td) ->
       line i ppf "Pwith_type %a\n" fmt_longident_loc lid;
       type_declaration (i+1) ppf td;
-  | Pwith_typesubst (td) ->
-      line i ppf "Pwith_typesubst\n";
+  | Pwith_typesubst (lid, td) ->
+      line i ppf "Pwith_typesubst %a\n" fmt_longident_loc lid;
       type_declaration (i+1) ppf td;
   | Pwith_module (lid1, lid2) ->
       line i ppf "Pwith_module %a = %a\n"
         fmt_longident_loc lid1
         fmt_longident_loc lid2;
-  | Pwith_modsubst (s, li) ->
+  | Pwith_modsubst (lid1, lid2) ->
       line i ppf "Pwith_modsubst %a = %a\n"
-        fmt_string_loc s
-        fmt_longident_loc li;
+        fmt_longident_loc lid1
+        fmt_longident_loc lid2;
 
 and module_expr i ppf x =
   line i ppf "module_expr %a\n" fmt_location x.pmod_loc;
@@ -866,7 +889,7 @@ and label_x_expression i ppf (l,e) =
 and label_x_bool_x_core_type_list i ppf x =
   match x with
     Rtag (l, attrs, b, ctl) ->
-      line i ppf "Rtag \"%s\" %s\n" l (string_of_bool b);
+      line i ppf "Rtag \"%s\" %s\n" l.txt (string_of_bool b);
       attributes (i+1) ppf attrs;
       list (i+1) core_type ppf ctl
   | Rinherit (ct) ->
@@ -887,7 +910,8 @@ and directive_argument i ppf x =
   match x with
   | Pdir_none -> line i ppf "Pdir_none\n"
   | Pdir_string (s) -> line i ppf "Pdir_string \"%s\"\n" s;
-  | Pdir_int (n) -> line i ppf "Pdir_int %d\n" n;
+  | Pdir_int (n, None) -> line i ppf "Pdir_int %s\n" n;
+  | Pdir_int (n, Some m) -> line i ppf "Pdir_int %s%c\n" n m;
   | Pdir_ident (li) -> line i ppf "Pdir_ident %a\n" fmt_longident li;
   | Pdir_bool (b) -> line i ppf "Pdir_bool %s\n" (string_of_bool b);
 ;;

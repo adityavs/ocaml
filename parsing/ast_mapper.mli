@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                        Alain Frisch, LexiFi                         *)
-(*                                                                     *)
-(*  Copyright 2012 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                         Alain Frisch, LexiFi                           *)
+(*                                                                        *)
+(*   Copyright 2012 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** The interface of a -ppx rewriter
 
@@ -110,9 +113,9 @@ val tool_name: unit -> string
     calling it ["ocamlc"], ["ocamlopt"], ["ocamldoc"], ["ocamldep"],
     ["ocaml"], ...  Some global variables that reflect command-line
     options are automatically synchronized between the calling tool
-    and the ppx preprocessor: [Clflags.include_dirs],
-    [Config.load_path], [Clflags.open_modules], [Clflags.for_package],
-    [Clflags.debug]. *)
+    and the ppx preprocessor: {!Clflags.include_dirs},
+    {!Config.load_path}, {!Clflags.open_modules}, {!Clflags.for_package},
+    {!Clflags.debug}. *)
 
 
 val apply: source:string -> target:string -> mapper -> unit
@@ -124,7 +127,7 @@ val apply: source:string -> target:string -> mapper -> unit
 val run_main: (string list -> mapper) -> unit
 (** Entry point to call to implement a standalone -ppx rewriter from a
     mapper, parametrized by the command line arguments.  The current
-    unit name can be obtained from [Location.input_name].  This
+    unit name can be obtained from {!Location.input_name}.  This
     function implements proper error reporting for uncaught
     exceptions. *)
 

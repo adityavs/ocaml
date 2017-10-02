@@ -1,21 +1,23 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal,                            *)
-(*            Luc Maranget, projet Moscova,                            *)
-(*                  INRIA Rocquencourt                                 *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*           Xavier Leroy, projet Cristal, INRIA Rocquencourt             *)
+(*           Luc Maranget, projet Moscova, INRIA Rocquencourt             *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Compiling a lexer definition *)
 
 open Syntax
-open Printf
+(*open Printf*)
 
 exception Memory_overflow
 
@@ -92,9 +94,6 @@ module TagMap =
 
 module IdSet =
   Set.Make (struct type t = ident let compare = id_compare end)
-
-module IdMap =
-  Map.Make (struct type t =  ident let compare = id_compare end)
 
 (*********************)
 (* Variable cleaning *)
@@ -209,7 +208,7 @@ let find_double e = do_find_double e
 
 (*
    Type of variables:
-    A variable is bound to a char when all its occurences
+    A variable is bound to a char when all its occurrences
     bind a pattern of length 1.
      The typical case is:
        (_ as x) -> char
@@ -302,15 +301,6 @@ let rec encode_regexp char_vars act = function
       Replace some non-optional, non-double tags by offsets w.r.t
       a previous similar tag.
 *)
-
-let incr_pos = function
-  | None   -> None
-  | Some i -> Some (i+1)
-
-let decr_pos = function
-  | None -> None
-  | Some i -> Some (i-1)
-
 
 let opt = true
 
@@ -551,7 +541,7 @@ let rec nullable = function
   | Chars (_,_)|Action _ -> false
   | Seq(r1,r2) -> nullable r1 && nullable r2
   | Alt(r1,r2) -> nullable r1 || nullable r2
-  | Star r     -> true
+  | Star _     -> true
 
 let rec emptymatch = function
   | Empty | Chars (_,_) | Action _ -> Tags.empty
@@ -587,7 +577,7 @@ let rec firstpos = function
   | Star r     -> firstpos r
 
 
-(* Berry-sethi followpos *)
+(* Berry-Sethi followpos *)
 let followpos size entry_list =
   let v = Array.make size TransSet.empty in
   let rec fill s = function
@@ -628,6 +618,7 @@ type 'a dfa_state =
    others : ('a * int TagMap.t) MemMap.t}
 
 
+(*
 let dtag oc t =
   fprintf oc "%s<%s>" t.id (if t.start then "s" else "e")
 
@@ -654,6 +645,7 @@ let dstate {final=(act,(_,m)) ; others=o} =
       dtag_map (fun x -> eprintf "%d" x) (fun () -> prerr_string " ,") m)
     (fun () -> prerr_endline "")
     o
+*)
 
 
 let dfa_state_empty =
@@ -692,13 +684,10 @@ let env_to_class m =
   let env1 =
     MemMap.fold
       (fun _ (tag,s) r ->
-        try
-          let ss = TagMap.find tag r in
-          let r = TagMap.remove tag r in
-          TagMap.add tag (StateSetSet.add s ss) r
-        with
-        | Not_found ->
-            TagMap.add tag (StateSetSet.add s StateSetSet.empty) r)
+         TagMap.update tag (function
+             | None -> Some (StateSetSet.singleton s)
+             | Some ss -> Some (StateSetSet.add s ss)
+           ) r)
       m TagMap.empty in
   TagMap.fold
     (fun tag ss r -> MemKey.add {tag=tag ; equiv=ss} r)
@@ -709,14 +698,12 @@ let env_to_class m =
 let inverse_mem_map trans m r =
   TagMap.fold
     (fun tag addr r ->
-      try
-        let otag,s = MemMap.find addr r in
-        assert (tag = otag) ;
-        let r = MemMap.remove addr r in
-        MemMap.add addr (tag,StateSet.add trans s) r
-      with
-      | Not_found ->
-          MemMap.add addr (tag,StateSet.add trans StateSet.empty) r)
+       MemMap.update addr (function
+           | None -> Some (tag, StateSet.singleton trans)
+           | Some (otag, s) ->
+               assert (tag = otag);
+               Some (tag, StateSet.add trans s)
+         ) r)
     m r
 
 let inverse_mem_map_other n (_,m) r = inverse_mem_map (OnChars n) m r
@@ -762,8 +749,8 @@ let reset_state () =
 
 (* Reset state before processing a given automata.
    We clear both the memory mapping and
-   the state mapping, as state sharing beetween different
-   automata may lead to incorret estimation of the cell memory size
+   the state mapping, as state sharing between different
+   automata may lead to incorrect estimation of the cell memory size
    BUG ID 0004517 *)
 
 
@@ -856,7 +843,7 @@ let create_init_state pos =
       (fun (t,tags) st ->
         match t with
         | ToAction n ->
-            let on,otags = st.final in
+            let on,_otags = st.final in
             if n < on then
               {st with final = (n, (0,create_mem_map tags gen))}
             else
@@ -881,10 +868,12 @@ let get_map t st = match t with
 let dest = function | Copy (d,_) | Set d  -> d
 and orig = function | Copy (_,o) -> o | Set _ -> -1
 
+(*
 let pmv oc mv = fprintf oc "%d <- %d" (dest mv) (orig mv)
 let pmvs oc mvs =
   List.iter (fun mv -> fprintf oc "%a " pmv  mv) mvs ;
   output_char oc '\n' ; flush oc
+*)
 
 
 (* Topological sort << a la louche >> *)
@@ -1051,7 +1040,7 @@ let comp_shift gen chars follow st =
 
 let reachs chars follow st =
   let gen = create_new_addr_gen () in
-(* build a association list (char set -> new state) *)
+(* build an association list (char set -> new state) *)
   let env = comp_shift gen chars follow st in
 (* change it into (char set -> new state_num) *)
   let env =
@@ -1103,6 +1092,7 @@ let translate_state shortest_match tags chars follow st =
     reachs chars follow st.others)
   end
 
+(*
 let dtags chan tags =
   Tags.iter
     (fun t -> fprintf chan " %a" dtag t)
@@ -1124,6 +1114,7 @@ let dfollow t =
     dtransset t.(i)
   done ;
   prerr_endline "]"
+*)
 
 
 let make_tag_entry id start act a r = match a with

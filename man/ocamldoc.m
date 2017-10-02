@@ -1,14 +1,17 @@
-.\"***********************************************************************
-.\"*                                                                     *
-.\"*                                OCaml                                *
-.\"*                                                                     *
-.\"*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *
-.\"*                                                                     *
-.\"*  Copyright 2004 Institut National de Recherche en Informatique et   *
-.\"*  en Automatique.  All rights reserved.  This file is distributed    *
-.\"*  under the terms of the Q Public License version 1.0.               *
-.\"*                                                                     *
-.\"***********************************************************************
+.\"**************************************************************************
+.\"*                                                                        *
+.\"*                                 OCaml                                  *
+.\"*                                                                        *
+.\"*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *
+.\"*                                                                        *
+.\"*   Copyright 2004 Institut National de Recherche en Informatique et     *
+.\"*     en Automatique.                                                    *
+.\"*                                                                        *
+.\"*   All rights reserved.  This file is distributed under the terms of    *
+.\"*   the GNU Lesser General Public License version 2.1, with the          *
+.\"*   special exception on linking described in the file LICENSE.          *
+.\"*                                                                        *
+.\"**************************************************************************
 .\"
 .TH OCAMLDOC 1
 
@@ -241,6 +244,9 @@ Pipe sources through preprocessor
 Pipe abstract syntax tree through preprocessor
 .IR command .
 .TP
+.BR \-show\-missed\-crossref
+Show missed cross-reference opportunities.
+.TP
 .B \-sort
 Sort the list of top-level modules before generating the documentation.
 .TP
@@ -251,6 +257,9 @@ Remove blank characters until the first asterisk ('*') in each line of comments.
 Use
 .I title
 as the title for the generated documentation.
+.TP
+.BI \-text \ file
+Consider \fIfile\fR as a .txt file.
 .TP
 .BI \-intro \ file
 Use content of
@@ -309,6 +318,10 @@ option:
 .TP
 .B \-all\-params
 Display the complete list of parameters for functions and methods.
+.TP
+.BI \-charset \ s
+Add information about character encoding being \fIs\fR
+(default is \fBiso-8859-1\fR).
 .TP
 .BI \-css\-style \ filename
 Use

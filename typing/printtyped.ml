@@ -1,14 +1,17 @@
-2(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                  Fabrice Le Fessant, INRIA Saclay                   *)
-(*                                                                     *)
-(*  Copyright 1999 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Tublic License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                   Fabrice Le Fessant, INRIA Saclay                     *)
+(*                                                                        *)
+(*   Copyright 1999 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Asttypes;;
 open Format;;
@@ -118,6 +121,16 @@ let list i f ppf l =
      line i ppf "]\n";
 ;;
 
+let array i f ppf a =
+  if Array.length a = 0 then
+    line i ppf "[]\n"
+  else begin
+    line i ppf "[\n";
+    Array.iter (f (i+1) ppf) a;
+    line i ppf "]\n"
+  end
+;;
+
 let option i f ppf x =
   match x with
   | None -> line i ppf "None\n";
@@ -133,6 +146,13 @@ let arg_label i ppf = function
   | Optional s -> line i ppf "Optional \"%s\"\n" s
   | Labelled s -> line i ppf "Labelled \"%s\"\n" s
 ;;
+
+let record_representation i ppf = let open Types in function
+  | Record_regular -> line i ppf "Record_regular\n"
+  | Record_float -> line i ppf "Record_float\n"
+  | Record_unboxed b -> line i ppf "Record_unboxed %b\n" b
+  | Record_inlined i -> line i ppf "Record_inlined %d\n" i
+  | Record_extension -> line i ppf "Record_extension\n"
 
 let attributes i ppf l =
   let i = i + 1 in
@@ -168,13 +188,15 @@ let rec core_type i ppf x =
   | Ttyp_object (l, c) ->
       line i ppf "Ttyp_object %a\n" fmt_closed_flag c;
       let i = i + 1 in
-      List.iter
-        (fun (s, attrs, t) ->
-          line i ppf "method %s\n" s;
-          attributes i ppf attrs;
-          core_type (i + 1) ppf t
-        )
-        l
+      List.iter (function
+        | OTtag (s, attrs, t) ->
+            line i ppf "method %s\n" s.txt;
+            attributes i ppf attrs;
+            core_type (i + 1) ppf t
+        | OTinherit ct ->
+            line i ppf "OTinherit\n";
+            core_type (i + 1) ppf ct
+        ) l
   | Ttyp_class (li, _, l) ->
       line i ppf "Ttyp_class %a\n" fmt_path li;
       list i core_type ppf l;
@@ -211,6 +233,10 @@ and pattern i ppf x =
         line i ppf "Tpat_type %a\n" fmt_path id;
         attributes i ppf attrs;
         pattern i ppf { x with pat_extra = rem }
+    | (Tpat_open (id,_,_), _, attrs)::rem ->
+        line i ppf "Tpat_open \"%a\"\n" fmt_path id;
+        attributes i ppf attrs;
+        pattern i ppf { x with pat_extra = rem }
     | [] ->
   match x.pat_desc with
   | Tpat_any -> line i ppf "Tpat_any\n";
@@ -228,7 +254,7 @@ and pattern i ppf x =
   | Tpat_variant (l, po, _) ->
       line i ppf "Tpat_variant \"%s\"\n" l;
       option i pattern ppf po;
-  | Tpat_record (l, c) ->
+  | Tpat_record (l, _c) ->
       line i ppf "Tpat_record\n";
       list i longident_x_pattern ppf l;
   | Tpat_array (l) ->
@@ -280,15 +306,15 @@ and expression i ppf x =
       line i ppf "Texp_let %a\n" fmt_rec_flag rf;
       list i value_binding ppf l;
       expression i ppf e;
-  | Texp_function (p, l, _partial) ->
+  | Texp_function { arg_label = p; param = _; cases; partial = _; } ->
       line i ppf "Texp_function\n";
       arg_label i ppf p;
-      list i case ppf l;
+      list i case ppf cases;
   | Texp_apply (e, l) ->
       line i ppf "Texp_apply\n";
       expression i ppf e;
       list i label_x_expression ppf l;
-  | Texp_match (e, l1, l2, partial) ->
+  | Texp_match (e, l1, l2, _partial) ->
       line i ppf "Texp_match\n";
       expression i ppf e;
       list i case ppf l1;
@@ -306,10 +332,15 @@ and expression i ppf x =
   | Texp_variant (l, eo) ->
       line i ppf "Texp_variant \"%s\"\n" l;
       option i expression ppf eo;
-  | Texp_record (l, eo) ->
+  | Texp_record { fields; representation; extended_expression } ->
       line i ppf "Texp_record\n";
-      list i longident_x_expression ppf l;
-      option i expression ppf eo;
+      let i = i+1 in
+      line i ppf "fields =\n";
+      array (i+1) record_field ppf fields;
+      line i ppf "representation =\n";
+      record_representation (i+1) ppf representation;
+      line i ppf "extended_expression =\n";
+      option (i+1) expression ppf extended_expression;
   | Texp_field (e, li, _) ->
       line i ppf "Texp_field\n";
       expression i ppf e;
@@ -359,6 +390,10 @@ and expression i ppf x =
       line i ppf "Texp_letmodule \"%a\"\n" fmt_ident s;
       module_expr i ppf me;
       expression i ppf e;
+  | Texp_letexception (cd, e) ->
+      line i ppf "Texp_letexception\n";
+      extension_constructor i ppf cd;
+      expression i ppf e;
   | Texp_assert (e) ->
       line i ppf "Texp_assert";
       expression i ppf e;
@@ -373,6 +408,8 @@ and expression i ppf x =
       module_expr i ppf me
   | Texp_unreachable ->
       line i ppf "Texp_unreachable"
+  | Texp_extension_constructor (li, _) ->
+      line i ppf "Texp_extension_constructor %a" fmt_longident li
 
 and value_description i ppf x =
   line i ppf "value_description %a %a\n" fmt_ident x.val_id fmt_location
@@ -456,6 +493,9 @@ and class_type i ppf x =
       arg_label i ppf l;
       core_type i ppf co;
       class_type i ppf cl;
+  | Tcty_open (ovf, m, _, _, e) ->
+      line i ppf "Tcty_open %a \"%a\"\n" fmt_override_flag ovf fmt_path m;
+      class_type i ppf e
 
 and class_signature i ppf { csig_self = ct; csig_fields = l } =
   line i ppf "class_signature\n";
@@ -537,6 +577,9 @@ and class_expr i ppf x =
       class_expr i ppf ce;
       class_type i ppf ct
   | Tcl_constraint (ce, None, _, _, _) -> class_expr i ppf ce
+  | Tcl_open (ovf, m, _, _, e) ->
+      line i ppf "Tcty_open %a \"%a\"\n" fmt_override_flag ovf fmt_path m;
+      class_expr i ppf e
 
 and class_structure i ppf { cstr_self = p; cstr_fields = l } =
   line i ppf "class_structure\n";
@@ -814,11 +857,14 @@ and string_x_expression i ppf (s, _, e) =
   line i ppf "<override> \"%a\"\n" fmt_path s;
   expression (i+1) ppf e;
 
-and longident_x_expression i ppf (li, _, e) =
-  line i ppf "%a\n" fmt_longident li;
-  expression (i+1) ppf e;
+and record_field i ppf = function
+  | _, Overridden (li, e) ->
+      line i ppf "%a\n" fmt_longident li;
+      expression (i+1) ppf e;
+  | _, Kept _ ->
+      line i ppf "<kept>"
 
-and label_x_expression i ppf (l, e, _) =
+and label_x_expression i ppf (l, e) =
   line i ppf "<arg>\n";
   arg_label (i+1) ppf l;
   (match e with None -> () | Some e -> expression (i+1) ppf e)
@@ -830,11 +876,11 @@ and ident_x_loc_x_expression_def i ppf (l,_, e) =
 and label_x_bool_x_core_type_list i ppf x =
   match x with
     Ttag (l, attrs, b, ctl) ->
-      line i ppf "Rtag \"%s\" %s\n" l (string_of_bool b);
+      line i ppf "Ttag \"%s\" %s\n" l.txt (string_of_bool b);
       attributes (i+1) ppf attrs;
       list (i+1) core_type ppf ctl
   | Tinherit (ct) ->
-      line i ppf "Rinherit\n";
+      line i ppf "Tinherit\n";
       core_type (i+1) ppf ct
 ;;
 

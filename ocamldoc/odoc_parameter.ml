@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Representation and manipulation of method / function / class parameters. *)
 
@@ -34,7 +37,7 @@ type parameter = param_info
 
 (** Functions *)
 
-(** acces to the name as a string. For tuples, parenthesis and commas are added. *)
+(** access to the name as a string. For tuples, parentheses and commas are added. *)
 let complete_name p =
   let rec iter pi =
     match pi with
@@ -79,7 +82,7 @@ let desc_by_name pi name =
   List.assoc name l
 
 
-(** acces to the list of names ; only one for a simple parameter, or
+(** access to the list of names ; only one for a simple parameter, or
    a list for tuples. *)
 let names pi =
   let rec iter acc pi =

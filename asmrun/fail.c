@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Raising exceptions from C. */
 
@@ -23,7 +27,7 @@
 #include "caml/mlvalues.h"
 #include "caml/printexc.h"
 #include "caml/signals.h"
-#include "stack.h"
+#include "caml/stack.h"
 #include "caml/roots.h"
 #include "caml/callback.h"
 
@@ -96,7 +100,7 @@ void caml_raise_with_args(value tag, int nargs, value args[])
   value bucket;
   int i;
 
-  Assert(1 + nargs <= Max_young_wosize);
+  CAMLassert(1 + nargs <= Max_young_wosize);
   bucket = caml_alloc_small (1 + nargs, 0);
   Field(bucket, 0) = tag;
   for (i = 0; i < nargs; i++) Field(bucket, 1 + i) = args[i];
@@ -117,9 +121,19 @@ void caml_failwith (char const *msg)
   caml_raise_with_string((value) caml_exn_Failure, msg);
 }
 
+void caml_failwith_value (value msg)
+{
+  caml_raise_with_arg((value) caml_exn_Failure, msg);
+}
+
 void caml_invalid_argument (char const *msg)
 {
   caml_raise_with_string((value) caml_exn_Invalid_argument, msg);
+}
+
+void caml_invalid_argument_value (value msg)
+{
+  caml_raise_with_arg((value) caml_exn_Invalid_argument, msg);
 }
 
 void caml_raise_out_of_memory(void)

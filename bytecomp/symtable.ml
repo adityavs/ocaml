@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* To assign numbers to globals and primitives *)
 
@@ -26,12 +29,6 @@ type error =
   | Uninitialized_global of string
 
 exception Error of error
-
-(* Tables for numbering objects *)
-
-type 'a numtable =
-  { num_cnt: int;               (* The next number *)
-    num_tbl: ('a, int) Tbl.t }  (* The table of already numbered objects *)
 
 let empty_numtable = { num_cnt = 0; num_tbl = Tbl.empty }
 
@@ -223,7 +220,10 @@ let rec transl_const = function
         fields;
       block
   | Const_float_array fields ->
-      Obj.repr(Array.of_list(List.map (fun f -> float_of_string f) fields))
+      let res = Array.Floatarray.create (List.length fields) in
+      List.iteri (fun i f -> Array.Floatarray.set res i (float_of_string f))
+        fields;
+      Obj.repr res
 
 (* Build the initial table of globals *)
 
@@ -329,12 +329,12 @@ let check_global_initialized patchlist =
     List.fold_left
       (fun accu rel ->
         match rel with
-          (Reloc_setglobal id, pos) -> id :: accu
+          (Reloc_setglobal id, _pos) -> id :: accu
         | _ -> accu)
       [] patchlist in
   (* Then check that all referenced, not defined globals have a value *)
   let check_reference = function
-      (Reloc_getglobal id, pos) ->
+      (Reloc_getglobal id, _pos) ->
         if not (List.mem id defined_globals)
         && Obj.is_int (get_global_value id)
         then raise (Error(Uninitialized_global(Ident.name id)))

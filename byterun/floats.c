@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* The interface of this file is in "caml/mlvalues.h" and "caml/alloc.h" */
 
@@ -17,6 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 #include <limits.h>
 
 #include "caml/alloc.h"
@@ -43,7 +48,7 @@ CAMLexport double caml_Double_val(value val)
 {
   union { value v[2]; double d; } buffer;
 
-  Assert(sizeof(double) == 2 * sizeof(value));
+  CAMLassert(sizeof(double) == 2 * sizeof(value));
   buffer.v[0] = Field(val, 0);
   buffer.v[1] = Field(val, 1);
   return buffer.d;
@@ -53,7 +58,7 @@ CAMLexport void caml_Store_double_val(value val, double dbl)
 {
   union { value v[2]; double d; } buffer;
 
-  Assert(sizeof(double) == 2 * sizeof(value));
+  CAMLassert(sizeof(double) == 2 * sizeof(value));
   buffer.d = dbl;
   Field(val, 0) = buffer.v[0];
   Field(val, 1) = buffer.v[1];
@@ -73,6 +78,18 @@ CAMLexport value caml_copy_double(double d)
   Store_double_val(res, d);
   return res;
 }
+
+#ifndef FLAT_FLOAT_ARRAY
+CAMLexport void caml_Store_double_array_field(value val, mlsize_t i, double dbl)
+{
+  CAMLparam1 (val);
+  value d = caml_copy_double (dbl);
+
+  CAMLassert (Tag_val (val) != Double_array_tag);
+  caml_modify (&Field(val, i), d);
+  CAMLreturn0;
+}
+#endif /* ! FLAT_FLOAT_ARRAY */
 
 CAMLprim value caml_format_float(value fmt, value arg)
 {
@@ -238,8 +255,9 @@ static int caml_float_of_hex(const char * s, double * res)
     }
     }
   }
+  if (n_bits == 0) return -1;
   /* Convert mantissa to FP.  We use a signed conversion because we can
-     (m has 60 bits at most) and because it is faster 
+     (m has 60 bits at most) and because it is faster
      on several architectures. */
   f = (double) (int64_t) m;
   /* Adjust exponent to take decimal point and extra digits into account */
@@ -255,7 +273,8 @@ static int caml_float_of_hex(const char * s, double * res)
 CAMLprim value caml_float_of_string(value vs)
 {
   char parse_buffer[64];
-  char * buf, * src, * dst, * end;
+  char * buf, * dst, * end;
+  const char *src;
   mlsize_t len;
   int sign;
   double d;
@@ -264,7 +283,7 @@ CAMLprim value caml_float_of_string(value vs)
   src = String_val(vs);
   sign = 1;
   if (*src == '-') { sign = -1; src++; }
-  else if (*src == '+') { src++; }; 
+  else if (*src == '+') { src++; };
   if (src[0] == '0' && (src[1] == 'x' || src[1] == 'X')) {
     if (caml_float_of_hex(src + 2, &d) == -1)
       caml_failwith("float_of_string");
@@ -468,9 +487,11 @@ CAMLexport double caml_hypot(double x, double y)
   return hypot(x, y);
 #else
   double tmp, ratio;
-  if (x != x) return x;  /* NaN */
-  if (y != y) return y;  /* NaN */
   x = fabs(x); y = fabs(y);
+  if (x != x) /* x is NaN */
+    return y > DBL_MAX ? y : x;  /* PR#6321 */
+  if (y != y) /* y is NaN */
+    return x > DBL_MAX ? x : y;  /* PR#6321 */
   if (x < y) { tmp = x; x = y; y = tmp; }
   if (x == 0.0) return 0.0;
   ratio = y / x;
@@ -550,34 +571,41 @@ CAMLprim value caml_copysign_float(value f, value g)
   return caml_copy_double(caml_copysign(Double_val(f), Double_val(g)));
 }
 
-CAMLprim value caml_eq_float(value f, value g)
+#ifdef LACKS_SANE_NAN
+
+CAMLprim value caml_neq_float(value vf, value vg)
 {
-  return Val_bool(Double_val(f) == Double_val(g));
+  double f = Double_val(vf);
+  double g = Double_val(vg);
+  return Val_bool(isnan(f) || isnan(g) || f != g);
 }
+
+#define DEFINE_NAN_CMP(op) (value vf, value vg) \
+{ \
+  double f = Double_val(vf); \
+  double g = Double_val(vg); \
+  return Val_bool(!isnan(f) && !isnan(g) && f op g); \
+}
+
+intnat caml_float_compare_unboxed(double f, double g)
+{
+  /* Insane => nan == everything && nan < everything && nan > everything */
+  if (isnan(f) && isnan(g)) return 0;
+  if (!isnan(g) && f < g) return -1;
+  if (f != g) return 1;
+  return 0;
+}
+
+#else
 
 CAMLprim value caml_neq_float(value f, value g)
 {
   return Val_bool(Double_val(f) != Double_val(g));
 }
 
-CAMLprim value caml_le_float(value f, value g)
-{
-  return Val_bool(Double_val(f) <= Double_val(g));
-}
-
-CAMLprim value caml_lt_float(value f, value g)
-{
-  return Val_bool(Double_val(f) < Double_val(g));
-}
-
-CAMLprim value caml_ge_float(value f, value g)
-{
-  return Val_bool(Double_val(f) >= Double_val(g));
-}
-
-CAMLprim value caml_gt_float(value f, value g)
-{
-  return Val_bool(Double_val(f) > Double_val(g));
+#define DEFINE_NAN_CMP(op) (value f, value g) \
+{ \
+  return Val_bool(Double_val(f) op Double_val(g)); \
 }
 
 intnat caml_float_compare_unboxed(double f, double g)
@@ -588,6 +616,14 @@ intnat caml_float_compare_unboxed(double f, double g)
      Note that [f == f] if and only if f is not NaN. */
   return (f > g) - (f < g) + (f == f) - (g == g);
 }
+
+#endif
+
+CAMLprim value caml_eq_float DEFINE_NAN_CMP(==)
+CAMLprim value caml_le_float DEFINE_NAN_CMP(<=)
+CAMLprim value caml_lt_float DEFINE_NAN_CMP(<)
+CAMLprim value caml_ge_float DEFINE_NAN_CMP(>=)
+CAMLprim value caml_gt_float DEFINE_NAN_CMP(>)
 
 CAMLprim value caml_float_compare(value vf, value vg)
 {

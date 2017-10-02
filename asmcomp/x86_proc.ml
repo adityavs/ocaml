@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*         Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2014 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*          Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2014 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open X86_ast
 
@@ -216,7 +219,6 @@ let string_of_rounding = function
   | RoundTruncate -> "roundsd.trunc"
   | RoundNearest -> "roundsd.near"
 
-
 (* These hooks can be used to insert optimization passes on
    the assembly code. *)
 let assembler_passes = ref ([] : (asm_program -> asm_program) list)
@@ -229,6 +231,11 @@ let masm =
   match system with
   | S_win32 | S_win64 -> true
   | _ -> false
+
+let use_plt =
+  match system with
+  | S_macosx | S_mingw64 | S_cygwin | S_win64 -> false
+  | _ -> !Clflags.dlcode
 
 (* Shall we use an external assembler command ?
    If [binary_content] contains some data, we can directly

@@ -1,15 +1,17 @@
-#########################################################################
-#                                                                       #
-#                                 OCaml                                 #
-#                                                                       #
-#            Xavier Leroy, projet Cristal, INRIA Rocquencourt           #
-#                                                                       #
-#   Copyright 1999 Institut National de Recherche en Informatique et    #
-#   en Automatique.  All rights reserved.  This file is distributed     #
-#   under the terms of the GNU Library General Public License, with     #
-#   the special exception on linking described in file ../../LICENSE.   #
-#                                                                       #
-#########################################################################
+#**************************************************************************
+#*                                                                        *
+#*                                 OCaml                                  *
+#*                                                                        *
+#*            Xavier Leroy, projet Cristal, INRIA Rocquencourt            *
+#*                                                                        *
+#*   Copyright 1999 Institut National de Recherche en Informatique et     *
+#*     en Automatique.                                                    *
+#*                                                                        *
+#*   All rights reserved.  This file is distributed under the terms of    *
+#*   the GNU Lesser General Public License version 2.1, with the          *
+#*   special exception on linking described in the file LICENSE.          *
+#*                                                                        *
+#**************************************************************************
 
 # FIXME reduce redundancy by including ../Makefile
 
@@ -17,8 +19,8 @@ include ../../config/Makefile
 CAMLRUN ?= ../../boot/ocamlrun
 CAMLYACC ?= ../../boot/ocamlyacc
 
-CC=$(BYTECC)
-CFLAGS=-I../../byterun $(BYTECCCOMPOPTS) $(SHAREDCCCOMPOPTS) -g
+CFLAGS += $(SHAREDCCCOMPOPTS)
+CPPFLAGS += -I../../byterun
 ROOTDIR=../..
 CAMLC=$(CAMLRUN) $(ROOTDIR)/ocamlc -nostdlib \
       -I $(ROOTDIR)/stdlib -I $(ROOTDIR)/otherlibs/unix
@@ -33,7 +35,7 @@ LIB=../../stdlib
 
 LIB_OBJS=$(LIB)/camlinternalFormatBasics.cmo pervasives.cmo		\
   $(LIB)/array.cmo $(LIB)/list.cmo $(LIB)/char.cmo $(LIB)/bytes.cmo	\
-  $(LIB)/string.cmo $(LIB)/sys.cmo $(LIB)/sort.cmo marshal.cmo	        \
+  $(LIB)/string.cmo $(LIB)/sys.cmo $(LIB)/sort.cmo marshal.cmo		\
   $(LIB)/obj.cmo $(LIB)/int32.cmo $(LIB)/int64.cmo			\
   $(LIB)/nativeint.cmo $(LIB)/lexing.cmo $(LIB)/parsing.cmo		\
   $(LIB)/set.cmo $(LIB)/map.cmo $(LIB)/stack.cmo $(LIB)/queue.cmo	\
@@ -43,9 +45,10 @@ LIB_OBJS=$(LIB)/camlinternalFormatBasics.cmo pervasives.cmo		\
   $(LIB)/random.cmo $(LIB)/hashtbl.cmo $(LIB)/format.cmo		\
   $(LIB)/scanf.cmo $(LIB)/callback.cmo $(LIB)/camlinternalOO.cmo	\
   $(LIB)/oo.cmo $(LIB)/camlinternalMod.cmo $(LIB)/genlex.cmo		\
-  $(LIB)/weak.cmo $(LIB)/filename.cmo $(LIB)/complex.cmo		\
-  $(LIB)/arrayLabels.cmo $(LIB)/listLabels.cmo $(LIB)/bytesLabels.cmo	\
-  $(LIB)/stringLabels.cmo $(LIB)/moreLabels.cmo $(LIB)/stdLabels.cmo
+  $(LIB)/weak.cmo $(LIB)/ephemeron.cmo $(LIB)/filename.cmo		\
+  $(LIB)/complex.cmo $(LIB)/arrayLabels.cmo $(LIB)/listLabels.cmo	\
+  $(LIB)/bytesLabels.cmo $(LIB)/stringLabels.cmo			\
+  $(LIB)/moreLabels.cmo $(LIB)/stdLabels.cmo
 
 UNIXLIB=../unix
 
@@ -104,15 +107,17 @@ clean: partialclean
 INSTALL_LIBDIR=$(DESTDIR)$(LIBDIR)
 INSTALL_STUBLIBDIR=$(DESTDIR)$(STUBLIBDIR)
 
+CMIFILES=thread.cmi mutex.cmi condition.cmi event.cmi threadUnix.cmi
+
 install:
-	if test -f dllvmthreads.so; then cp dllvmthreads.so $(INSTALL_STUBLIBDIR)/.; fi
-	mkdir -p $(INSTALL_LIBDIR)/vmthreads
-	cp libvmthreads.a $(INSTALL_LIBDIR)/vmthreads/libvmthreads.a
-	cd $(INSTALL_LIBDIR)/vmthreads; $(RANLIB) libvmthreads.a
-	cp thread.cmi mutex.cmi condition.cmi event.cmi threadUnix.cmi \
-	   threads.cma stdlib.cma unix.cma $(INSTALL_LIBDIR)/vmthreads
-	cp thread.mli mutex.mli condition.mli event.mli threadUnix.mli \
-	   $(INSTALL_LIBDIR)/vmthreads
+	if test -f dllvmthreads.so; then \
+	  cp dllvmthreads.so "$(INSTALL_STUBLIBDIR)"; \
+	fi
+	mkdir -p "$(INSTALL_LIBDIR)/vmthreads"
+	cp libvmthreads.a "$(INSTALL_LIBDIR)/vmthreads"
+	cd "$(INSTALL_LIBDIR)/vmthreads"; $(RANLIB) libvmthreads.a
+	cp $(CMIFILES) $(CMIFILES:.cmi=.mli) $(CMIFILES:.cmi=.cmti) \
+	   threads.cma stdlib.cma unix.cma "$(INSTALL_LIBDIR)/vmthreads"
 
 installopt:
 
@@ -124,8 +129,13 @@ installopt:
 .ml.cmo:
 	$(CAMLC) -c $(COMPFLAGS) $<
 
+.PHONY: depend
 depend:
-	$(CC) -MM $(CFLAGS) *.c > .depend
-	$(CAMLRUN) ../../tools/ocamldep *.mli *.ml >> .depend
+ifeq "$(TOOLCHAIN)" "msvc"
+	$(error Dependencies cannot be regenerated using the MSVC ports)
+else
+	$(CC) -MM $(CPPFLAGS) *.c > .depend
+	$(CAMLRUN) ../../tools/ocamldep -slash *.mli *.ml >> .depend
+endif
 
 include .depend

@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                       Alain Frisch, LexiFi                          *)
-(*                                                                     *)
-(*  Copyright 2015 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                        Alain Frisch, LexiFi                            *)
+(*                                                                        *)
+(*   Copyright 2015 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Asttypes
 open Typedtree
@@ -43,6 +46,7 @@ type mapper =
     package_type: mapper -> package_type -> package_type;
     pat: mapper -> pattern -> pattern;
     row_field: mapper -> row_field -> row_field;
+    object_field: mapper -> object_field -> object_field;
     signature: mapper -> signature -> signature;
     signature_item: mapper -> signature_item -> signature_item;
     structure: mapper -> structure -> structure;

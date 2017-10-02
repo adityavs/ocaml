@@ -1,15 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the GNU Library General Public License, with    *)
-(*  the special exception on linking described in file ../LICENSE.     *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** String operations.
 
@@ -179,11 +181,23 @@ val index : string -> char -> int
 
    Raise [Not_found] if [c] does not occur in [s]. *)
 
+val index_opt: string -> char -> int option
+(** [String.index_opt s c] returns the index of the first
+    occurrence of character [c] in string [s], or
+    [None] if [c] does not occur in [s].
+    @since 4.05 *)
+
 val rindex : string -> char -> int
 (** [String.rindex s c] returns the index of the last
    occurrence of character [c] in string [s].
 
    Raise [Not_found] if [c] does not occur in [s]. *)
+
+val rindex_opt: string -> char -> int option
+(** [String.rindex_opt s c] returns the index of the last occurrence
+    of character [c] in string [s], or [None] if [c] does not occur in
+    [s].
+    @since 4.05 *)
 
 val index_from : string -> int -> char -> int
 (** [String.index_from s i c] returns the index of the
@@ -193,6 +207,17 @@ val index_from : string -> int -> char -> int
    Raise [Invalid_argument] if [i] is not a valid position in [s].
    Raise [Not_found] if [c] does not occur in [s] after position [i]. *)
 
+val index_from_opt: string -> int -> char -> int option
+(** [String.index_from_opt s i c] returns the index of the
+    first occurrence of character [c] in string [s] after position [i]
+    or [None] if [c] does not occur in [s] after position [i].
+
+    [String.index_opt s c] is equivalent to [String.index_from_opt s 0 c].
+    Raise [Invalid_argument] if [i] is not a valid position in [s].
+
+    @since 4.05
+*)
+
 val rindex_from : string -> int -> char -> int
 (** [String.rindex_from s i c] returns the index of the
    last occurrence of character [c] in string [s] before position [i+1].
@@ -201,6 +226,19 @@ val rindex_from : string -> int -> char -> int
 
    Raise [Invalid_argument] if [i+1] is not a valid position in [s].
    Raise [Not_found] if [c] does not occur in [s] before position [i+1]. *)
+
+val rindex_from_opt: string -> int -> char -> int option
+(** [String.rindex_from_opt s i c] returns the index of the
+   last occurrence of character [c] in string [s] before position [i+1]
+   or [None] if [c] does not occur in [s] before position [i+1].
+
+   [String.rindex_opt s c] is equivalent to
+   [String.rindex_from_opt s (String.length s - 1) c].
+
+   Raise [Invalid_argument] if [i+1] is not a valid position in [s].
+
+    @since 4.05
+*)
 
 val contains : string -> char -> bool
 (** [String.contains s c] tests if character [c]
@@ -279,6 +317,21 @@ val compare: t -> t -> int
 val equal: t -> t -> bool
 (** The equal function for strings.
     @since 4.03.0 *)
+
+val split_on_char: char -> string -> string list
+(** [String.split_on_char sep s] returns the list of all (possibly empty)
+    substrings of [s] that are delimited by the [sep] character.
+
+    The function's output is specified by the following invariants:
+
+    - The list is not empty.
+    - Concatenating its elements using [sep] as a separator returns a
+      string equal to the input ([String.concat (String.make 1 sep)
+      (String.split_on_char sep s) = s]).
+    - No string in the result contains the [sep] character.
+
+    @since 4.04.0
+*)
 
 (**/**)
 

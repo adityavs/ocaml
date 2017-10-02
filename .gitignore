@@ -1,3 +1,18 @@
+#**************************************************************************
+#*                                                                        *
+#*                                 OCaml                                  *
+#*                                                                        *
+#*                 Damien Doligez, projet Gallium, INRIA                  *
+#*                                                                        *
+#*   Copyright 2015 Institut National de Recherche en Informatique et     *
+#*     en Automatique.                                                    *
+#*                                                                        *
+#*   All rights reserved.  This file is distributed under the terms of    *
+#*   the GNU Lesser General Public License version 2.1, with the          *
+#*   special exception on linking described in the file LICENSE.          *
+#*                                                                        *
+#**************************************************************************
+
 # general patterns
 
 *.o
@@ -12,11 +27,11 @@
 *.annot
 *.exe
 *.exe.manifest
-.depend
-.depend.nt
 .DS_Store
 *.out
 *.out.dSYM
+*.swp
+_ocamltest
 
 # local to root directory
 
@@ -42,8 +57,10 @@
 /asmrun/*.p.c
 /asmrun/*.d.c
 /asmrun/alloc.c
+/asmrun/afl.c
 /asmrun/array.c
 /asmrun/backtrace.c
+/asmrun/bigarray.c
 /asmrun/callback.c
 /asmrun/compact.c
 /asmrun/compare.c
@@ -78,6 +95,7 @@
 /asmrun/terminfo.c
 /asmrun/unix.c
 /asmrun/weak.c
+/asmrun/win32.c
 
 /boot/Saved
 /boot/ocamlrun
@@ -88,12 +106,15 @@
 /bytecomp/opcodes.ml
 
 /byterun/caml/jumptbl.h
+/byterun/caml/m.h
+/byterun/caml/s.h
 /byterun/primitives
 /byterun/prims.c
 /byterun/caml/opnames.h
 /byterun/caml/version.h
 /byterun/ocamlrun
 /byterun/ocamlrund
+/byterun/ocamlruni
 /byterun/ld.conf
 /byterun/interp.a.lst
 /byterun/*.[sd]obj
@@ -101,18 +122,16 @@
 /byterun/*.d.c
 /byterun/*.pic.c
 
-/compilerlibs
-
-/config/m.h
-/config/s.h
 /config/Makefile
+/config/auto-aux/hashbang4
 
 /debugger/lexer.ml
 /debugger/parser.ml
 /debugger/parser.mli
 /debugger/ocamldebug
-/debugger/dynlink.ml
-/debugger/dynlink.mli
+/driver/compdynlink.mlopt
+/driver/compdynlink.mlbyte
+/driver/compdynlink.mli
 
 /emacs/ocamltags
 /emacs/*.elc
@@ -127,9 +146,14 @@
 /lex/ocamllex.opt
 /lex/parser.output
 
+/manual/manual/cmds/warnings-help.etex
+/manual/manual/warnings-help.etex
+
 /ocamlbuild/ocamlbuild_config.ml
 /ocamlbuild/lexers.ml
 /ocamlbuild/glob_lexer.ml
+/ocamlbuild/ocamlbuild.native
+/ocamlbuild/ocamlbuild.byte
 
 /ocamldoc/ocamldoc
 /ocamldoc/ocamldoc.opt
@@ -149,8 +173,14 @@
 /ocamldoc/test_latex
 /ocamldoc/test
 
+/ocamltest/ocamltest
+/ocamltest/ocamltest.opt
+/ocamltest/ocamltest_config.ml
+/ocamltest/tsl_lexer.ml
+/ocamltest/tsl_parser.ml
+/ocamltest/tsl_parser.mli
+
 /otherlibs/dynlink/extract_crc
-/otherlibs/systhreads/thread.ml
 /otherlibs/threads/marshal.mli
 /otherlibs/threads/pervasives.mli
 /otherlibs/threads/unix.mli
@@ -164,7 +194,6 @@
 /otherlibs/win32unix/chmod.c
 /otherlibs/win32unix/cst2constr.c
 /otherlibs/win32unix/cstringv.c
-/otherlibs/win32unix/envir.c
 /otherlibs/win32unix/execv.c
 /otherlibs/win32unix/execve.c
 /otherlibs/win32unix/execvp.c
@@ -177,6 +206,7 @@
 /otherlibs/win32unix/getproto.c
 /otherlibs/win32unix/getserv.c
 /otherlibs/win32unix/gmtime.c
+/otherlibs/win32unix/mmap_ba.c
 /otherlibs/win32unix/putenv.c
 /otherlibs/win32unix/rmdir.c
 /otherlibs/win32unix/socketaddr.c
@@ -197,26 +227,37 @@
 
 /stdlib/camlheader
 /stdlib/target_camlheader
-/stdlib/camlheaderd
-/stdlib/target_camlheaderd
+/stdlib/camlheader[di]
+/stdlib/target_camlheader[di]
 /stdlib/camlheader_ur
 /stdlib/labelled-*
 /stdlib/caml
 /stdlib/sys.ml
 
 /testsuite/**/*.result
+/testsuite/**/*.opt_result
+/testsuite/**/*.corrected
 /testsuite/**/*.byte
 /testsuite/**/*.native
 /testsuite/**/program
 /testsuite/**/_log
+
+/testsuite/_retries
 
 /testsuite/tests/asmcomp/codegen
 /testsuite/tests/asmcomp/parsecmm.ml
 /testsuite/tests/asmcomp/parsecmm.mli
 /testsuite/tests/asmcomp/lexcmm.ml
 /testsuite/tests/asmcomp/*.s
+/testsuite/tests/asmcomp/*.out.manifest
+
+/testsuite/tests/basic/*.safe-string
+/testsuite/tests/basic/pr6322.ml
 
 /testsuite/tests/embedded/caml
+
+/testsuite/tests/float-unboxing/*.flambda
+/testsuite/tests/float-unboxing/float_inline.ml
 
 /testsuite/tests/lib-dynlink-bytecode/main
 /testsuite/tests/lib-dynlink-bytecode/static
@@ -235,46 +276,114 @@
 
 /testsuite/tests/lib-threads/*.byt
 
+/testsuite/tests/lib-unix/win-stat/*-file
+
+/testsuite/tests/opaque/*/*.mli
+
+/testsuite/tests/output_obj/*.bc.c
+/testsuite/tests/output_obj/*_stub
+/testsuite/tests/output_obj/*_stub
+
 /testsuite/tests/runtime-errors/*.bytecode
+
+/testsuite/tests/self-contained-toplevel/cached_cmi.ml
 
 /testsuite/tests/tool-debugger/**/compiler-libs
 /testsuite/tests/tool-debugger/find-artifacts/out
 /testsuite/tests/tool-debugger/no_debug_event/out
 /testsuite/tests/tool-debugger/no_debug_event/c
 
+/testsuite/tests/tool-ocamldep-modalias/*.byt*
+/testsuite/tests/tool-ocamldep-modalias/*.opt*
+/testsuite/tests/tool-ocamldep-modalias/depend.mk
+/testsuite/tests/tool-ocamldep-modalias/depend.mk2
+/testsuite/tests/tool-ocamldep-modalias/depend.mod
+/testsuite/tests/tool-ocamldep-modalias/depend.mod2
+/testsuite/tests/tool-ocamldep-modalias/depend.mod3
+
 /testsuite/tests/tool-ocamldoc/*.html
 /testsuite/tests/tool-ocamldoc/*.sty
 /testsuite/tests/tool-ocamldoc/*.css
+
+/testsuite/tests/tool-ocamldoc-2/ocamldoc.sty
+
+/testsuite/tests/tool-ocamldoc-html/*.html
+/testsuite/tests/tool-ocamldoc-html/style.css
+
+/testsuite/tests/tool-ocamldoc-man/*.3o
+
+/testsuite/tests/tool-ocamldoc-open/alias.odoc
+/testsuite/tests/tool-ocamldoc-open/inner.odoc
+/testsuite/tests/tool-ocamldoc-open/main.odoc
+/testsuite/tests/tool-ocamldoc-open/ocamldoc.sty
 
 /testsuite/tests/tool-lexyacc/scanner.ml
 /testsuite/tests/tool-lexyacc/grammar.mli
 /testsuite/tests/tool-lexyacc/grammar.ml
 
+/testsuite/tests/typing-misc/false.flat-float
+/testsuite/tests/typing-misc/true.flat-float
+/testsuite/tests/typing-misc/pr6939.ml
+
+/testsuite/tests/typing-multifile/a.ml
+/testsuite/tests/typing-multifile/b.ml
+/testsuite/tests/typing-multifile/c.ml
+/testsuite/tests/typing-multifile/d.mli
+/testsuite/tests/typing-multifile/e.ml
+/testsuite/tests/typing-multifile/f.ml
+/testsuite/tests/typing-multifile/g.ml
+/testsuite/tests/typing-multifile/test
+
+/testsuite/tests/typing-unboxed-types/false.flat-float
+/testsuite/tests/typing-unboxed-types/true.flat-float
+/testsuite/tests/typing-unboxed-types/test.ml.reference
+
+/testsuite/tests/translprim/false.flat-float
+/testsuite/tests/translprim/true.flat-float
+/testsuite/tests/translprim/array_spec.ml.reference
+/testsuite/tests/translprim/module_coercion.ml.reference
+
 /testsuite/tests/unboxed-primitive-args/main.ml
 /testsuite/tests/unboxed-primitive-args/stubs.c
 
+/testsuite/tests/unwind/unwind_test
+
 /testsuite/tests/warnings/w55.opt.opt_result
+/testsuite/tests/warnings/w58.opt.opt_result
+
+/testsuite/tests/win-unicode/symlink_tests.precheck
+
+/testsuite/tools/expect_test
 
 /tools/ocamldep
 /tools/ocamldep.opt
 /tools/ocamldep.bak
 /tools/ocamlprof
+/tools/ocamlprof.opt
 /tools/opnames.ml
 /tools/dumpobj
+/tools/dumpobj.opt
 /tools/dumpapprox
-/tools/objinfo
+/tools/ocamlobjinfo
+/tools/ocamlobjinfo.opt
 /tools/cvt_emit
+/tools/cvt_emit.opt
 /tools/cvt_emit.bak
 /tools/cvt_emit.ml
 /tools/ocamlcp
+/tools/ocamlcp.opt
 /tools/ocamloptp
+/tools/ocamloptp.opt
 /tools/ocamlmktop
+/tools/ocamlmktop.opt
 /tools/primreq
+/tools/primreq.opt
 /tools/ocamldumpobj
 /tools/keywords
 /tools/lexer299.ml
 /tools/ocaml299to3
 /tools/ocamlmklib
+/tools/ocamlmklib.opt
 /tools/ocamlmklibconfig.ml
 /tools/lexer301.ml
 /tools/scrapelabels
@@ -282,6 +391,12 @@
 /tools/objinfo_helper
 /tools/read_cmt
 /tools/read_cmt.opt
+/tools/cmpbyt
+/tools/cmpbyt.opt
+/tools/stripdebug
+/tools/stripdebug.opt
+/tools/make_opcodes
+/tools/make_opcodes.ml
 
 /utils/config.ml
 

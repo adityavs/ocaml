@@ -1,15 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*  Xavier Leroy and Pascal Cuoq, projet Cristal, INRIA Rocquencourt   *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the GNU Library General Public License, with    *)
-(*  the special exception on linking described in file ../../LICENSE.  *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*   Xavier Leroy and Pascal Cuoq, projet Cristal, INRIA Rocquencourt     *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Initialization *)
 
@@ -119,7 +121,10 @@ let handle_unix_error f arg =
     exit 2
 
 external environment : unit -> string array = "unix_environment"
+(* On Win32 environment access is always considered safe. *)
+let unsafe_environment = environment
 external getenv: string -> string = "caml_sys_getenv"
+external unsafe_getenv: string -> string = "caml_sys_unsafe_getenv"
 external putenv: string -> string -> unit = "unix_putenv"
 
 type process_status =
@@ -145,7 +150,7 @@ external getpid : unit -> int = "unix_getpid"
 let fork () = invalid_arg "Unix.fork not implemented"
 let wait () = invalid_arg "Unix.wait not implemented"
 let getppid () = invalid_arg "Unix.getppid not implemented"
-let nice prio = invalid_arg "Unix.nice not implemented"
+let nice _ = invalid_arg "Unix.nice not implemented"
 
 (* Basic file input/output *)
 
@@ -170,6 +175,7 @@ type open_flag =
   | O_RSYNC
   | O_SHARE_DELETE
   | O_CLOEXEC
+  | O_KEEPEXEC
 
 type file_perm = int
 
@@ -222,8 +228,8 @@ type seek_command =
 
 external lseek : file_descr -> int -> seek_command -> int = "unix_lseek"
 
-let truncate name len = invalid_arg "Unix.truncate not implemented"
-let ftruncate fd len = invalid_arg "Unix.ftruncate not implemented"
+let truncate _name _len = invalid_arg "Unix.truncate not implemented"
+let ftruncate _fd _len = invalid_arg "Unix.ftruncate not implemented"
 
 (* File statistics *)
 
@@ -251,10 +257,9 @@ type stats =
     st_ctime : float }
 
 external stat : string -> stats = "unix_stat"
-let lstat = stat
+external lstat : string -> stats = "unix_lstat"
 external fstat : file_descr -> stats = "unix_fstat"
-let isatty fd =
-  match (fstat fd).st_kind with S_CHR -> true | _ -> false
+external isatty : file_descr -> bool = "unix_isatty"
 
 (* Operations on file names *)
 
@@ -268,9 +273,9 @@ module LargeFile =
   struct
     external lseek : file_descr -> int64 -> seek_command -> int64
        = "unix_lseek_64"
-    let truncate name len =
+    let truncate _name _len =
       invalid_arg "Unix.LargeFile.truncate not implemented"
-    let ftruncate name len =
+    let ftruncate _name _len =
       invalid_arg "Unix.LargeFile.ftruncate not implemented"
     type stats =
       { st_dev : int;
@@ -287,9 +292,21 @@ module LargeFile =
         st_ctime : float;
       }
     external stat : string -> stats = "unix_stat_64"
-    let lstat = stat
+    external lstat : string -> stats = "unix_lstat_64"
     external fstat : file_descr -> stats = "unix_fstat_64"
   end
+
+(* Mapping files into memory *)
+
+external map_internal:
+   file_descr -> ('a, 'b) CamlinternalBigarray.kind
+              -> 'c CamlinternalBigarray.layout
+              -> bool -> int array -> int64
+              -> ('a, 'b, 'c) CamlinternalBigarray.genarray
+     = "caml_unix_map_file_bytecode" "caml_unix_map_file"
+
+let map_file fd ?(pos=0L) kind layout shared dims =
+  map_internal fd kind layout shared dims pos
 
 (* File permissions and ownership *)
 
@@ -300,17 +317,18 @@ type access_permission =
   | F_OK
 
 external chmod : string -> file_perm -> unit = "unix_chmod"
-let fchmod fd perm = invalid_arg "Unix.fchmod not implemented"
-let chown file perm = invalid_arg "Unix.chown not implemented"
-let fchown fd perm = invalid_arg "Unix.fchown not implemented"
-let umask msk = invalid_arg "Unix.umask not implemented"
+let fchmod _fd _perm = invalid_arg "Unix.fchmod not implemented"
+let chown _file _perm = invalid_arg "Unix.chown not implemented"
+let fchown _fd _perm = invalid_arg "Unix.fchown not implemented"
+let umask _msk = invalid_arg "Unix.umask not implemented"
 
 external access : string -> access_permission list -> unit = "unix_access"
 
 (* Operations on file descriptors *)
 
-external dup : file_descr -> file_descr = "unix_dup"
-external dup2 : file_descr -> file_descr -> unit = "unix_dup2"
+external dup : ?cloexec: bool -> file_descr -> file_descr = "unix_dup"
+external dup2 :
+   ?cloexec: bool -> file_descr -> file_descr -> unit = "unix_dup2"
 
 external set_nonblock : file_descr -> unit = "unix_set_nonblock"
 external clear_nonblock : file_descr -> unit = "unix_clear_nonblock"
@@ -367,14 +385,42 @@ let rewinddir d =
 
 (* Pipes *)
 
-external pipe : unit -> file_descr * file_descr = "unix_pipe"
+external pipe :
+  ?cloexec: bool -> unit -> file_descr * file_descr = "unix_pipe"
 
-let mkfifo name perm = invalid_arg "Unix.mkfifo not implemented"
+let mkfifo _name _perm = invalid_arg "Unix.mkfifo not implemented"
 
 (* Symbolic links *)
 
-let readlink path = invalid_arg "Unix.readlink not implemented"
-let symlink path1 path2 = invalid_arg "Unix.symlink not implemented"
+external readlink : string -> string = "unix_readlink"
+external symlink_stub : bool -> string -> string -> unit = "unix_symlink"
+
+(* See https://caml.inria.fr/mantis/view.php?id=7564.
+   The Windows API used to create symbolic links does not normalize the target
+   of a symbolic link, so we do it here.  Note that we cannot use the native
+   Windows call GetFullPathName to do this because we need relative paths to
+   stay relative. *)
+let normalize_slashes path =
+  if String.length path >= 4 && path.[0] = '\\' && path.[1] = '\\' && path.[2] = '?' && path.[3] = '\\' then
+    path
+  else
+    String.init (String.length path) (fun i -> match path.[i] with '/' -> '\\' | c -> c)
+
+let symlink ?to_dir source dest =
+  let to_dir =
+    match to_dir with
+      Some to_dir ->
+        to_dir
+    | None ->
+        try
+          LargeFile.((stat source).st_kind = S_DIR)
+        with _ ->
+          false
+  in
+  let source = normalize_slashes source in
+  symlink_stub to_dir source dest
+
+external has_symlink : unit -> bool = "unix_has_symlink"
 
 (* Locking *)
 
@@ -399,9 +445,9 @@ let kill pid signo =
         (* could be more precise *)
 
 type sigprocmask_command = SIG_SETMASK | SIG_BLOCK | SIG_UNBLOCK
-let sigprocmask cmd sigs = invalid_arg "Unix.sigprocmask not implemented"
+let sigprocmask _cmd _sigs = invalid_arg "Unix.sigprocmask not implemented"
 let sigpending () = invalid_arg "Unix.sigpending not implemented"
-let sigsuspend sigs = invalid_arg "Unix.sigsuspend not implemented"
+let sigsuspend _sigs = invalid_arg "Unix.sigsuspend not implemented"
 let pause () = invalid_arg "Unix.pause not implemented"
 
 (* Time functions *)
@@ -428,7 +474,7 @@ external gettimeofday : unit -> float = "unix_gettimeofday"
 external gmtime : float -> tm = "unix_gmtime"
 external localtime : float -> tm = "unix_localtime"
 external mktime : tm -> float * tm = "unix_mktime"
-let alarm n = invalid_arg "Unix.alarm not implemented"
+let alarm _n = invalid_arg "Unix.alarm not implemented"
 external sleepf : float -> unit = "unix_sleep"
 let sleep n = sleepf (float n)
 external times: unit -> process_times = "unix_times"
@@ -443,18 +489,18 @@ type interval_timer_status =
   { it_interval: float;
     it_value: float }
 
-let getitimer it = invalid_arg "Unix.getitimer not implemented"
-let setitimer it tm = invalid_arg "Unix.setitimer not implemented"
+let getitimer _it = invalid_arg "Unix.getitimer not implemented"
+let setitimer _it _tm = invalid_arg "Unix.setitimer not implemented"
 
 (* User id, group id *)
 
 let getuid () = 1
 let geteuid = getuid
-let setuid id = invalid_arg "Unix.setuid not implemented"
+let setuid _id = invalid_arg "Unix.setuid not implemented"
 
 let getgid () = 1
 let getegid = getgid
-let setgid id = invalid_arg "Unix.setgid not implemented"
+let setgid _id = invalid_arg "Unix.setgid not implemented"
 
 let getgroups () = [|1|]
 let setgroups _ = invalid_arg "Unix.setgroups not implemented"
@@ -476,7 +522,7 @@ type group_entry =
     gr_mem : string array }
 
 let getlogin () = try Sys.getenv "USERNAME" with Not_found -> ""
-let getpwnam x = raise Not_found
+let getpwnam _x = raise Not_found
 let getgrnam = getpwnam
 let getpwuid = getpwnam
 let getgrgid = getpwnam
@@ -530,10 +576,12 @@ type msg_flag =
   | MSG_DONTROUTE
   | MSG_PEEK
 
-external socket : socket_domain -> socket_type -> int -> file_descr
-                                  = "unix_socket"
-let socketpair dom ty proto = invalid_arg "Unix.socketpair not implemented"
-external accept : file_descr -> file_descr * sockaddr = "unix_accept"
+external socket :
+  ?cloexec: bool -> socket_domain -> socket_type -> int -> file_descr
+  = "unix_socket"
+let socketpair ?cloexec:_ _dom _ty _proto = invalid_arg "Unix.socketpair not implemented"
+external accept :
+  ?cloexec: bool -> file_descr -> file_descr * sockaddr = "unix_accept"
 external bind : file_descr -> sockaddr -> unit = "unix_bind"
 external connect : file_descr -> sockaddr -> unit = "unix_connect"
 external listen : file_descr -> int -> unit = "unix_listen"
@@ -809,7 +857,10 @@ external win_create_process : string -> string -> string option ->
 
 let make_cmdline args =
   let maybe_quote f =
-    if String.contains f ' ' || String.contains f '\"' || f = ""
+    if String.contains f ' ' ||
+       String.contains f '\"' ||
+       String.contains f '\t' ||
+       f = ""
     then Filename.quote f
     else f in
   String.concat " " (List.map maybe_quote (Array.to_list args))
@@ -848,46 +899,78 @@ let open_proc cmd optenv proc input output error =
   Hashtbl.add popen_processes proc pid
 
 let open_process_in cmd =
-  let (in_read, in_write) = pipe() in
-  set_close_on_exec in_read;
+  let (in_read, in_write) = pipe ~cloexec:true () in
   let inchan = in_channel_of_descr in_read in
-  open_proc cmd None (Process_in inchan) stdin in_write stderr;
+  begin
+    try
+      open_proc cmd None (Process_in inchan) stdin in_write stderr
+    with e ->
+      close_in inchan;
+      close in_write;
+      raise e
+  end;
   close in_write;
   inchan
 
 let open_process_out cmd =
-  let (out_read, out_write) = pipe() in
-  set_close_on_exec out_write;
+  let (out_read, out_write) = pipe ~cloexec:true () in
   let outchan = out_channel_of_descr out_write in
-  open_proc cmd None (Process_out outchan) out_read stdout stderr;
+  begin
+    try
+      open_proc cmd None (Process_out outchan) out_read stdout stderr
+    with e ->
+    close_out outchan;
+    close out_read;
+    raise e
+  end;
   close out_read;
   outchan
 
 let open_process cmd =
-  let (in_read, in_write) = pipe() in
-  let (out_read, out_write) = pipe() in
-  set_close_on_exec in_read;
-  set_close_on_exec out_write;
+  let (in_read, in_write) = pipe ~cloexec:true () in
+  let (out_read, out_write) =
+    try pipe ~cloexec:true ()
+    with e -> close in_read; close in_write; raise e in
   let inchan = in_channel_of_descr in_read in
   let outchan = out_channel_of_descr out_write in
-  open_proc cmd None (Process(inchan, outchan)) out_read in_write stderr;
-  close out_read; close in_write;
+  begin
+    try
+      open_proc cmd None (Process(inchan, outchan)) out_read in_write stderr
+    with e ->
+      close out_read; close out_write;
+      close in_read; close in_write;
+      raise e
+  end;
+  close out_read;
+  close in_write;
   (inchan, outchan)
 
 let open_process_full cmd env =
-  let (in_read, in_write) = pipe() in
-  let (out_read, out_write) = pipe() in
-  let (err_read, err_write) = pipe() in
-  set_close_on_exec in_read;
-  set_close_on_exec out_write;
-  set_close_on_exec err_read;
+  let (in_read, in_write) = pipe ~cloexec:true () in
+  let (out_read, out_write) =
+    try pipe ~cloexec:true ()
+    with e -> close in_read; close in_write; raise e in
+  let (err_read, err_write) =
+    try pipe ~cloexec:true ()
+    with e -> close in_read; close in_write;
+              close out_read; close out_write; raise e in
   let inchan = in_channel_of_descr in_read in
   let outchan = out_channel_of_descr out_write in
   let errchan = in_channel_of_descr err_read in
-  open_proc cmd (Some(make_process_env env))
-                (Process_full(inchan, outchan, errchan))
-                out_read in_write err_write;
-  close out_read; close in_write; close err_write;
+  begin
+    try
+      open_proc cmd (Some (make_process_env env))
+               (Process_full(inchan, outchan, errchan))
+                out_read in_write err_write
+    with e ->
+      close out_read; close out_write;
+      close in_read; close in_write;
+      close err_read; close err_write;
+      raise e
+  end;
+  close out_read;
+  close in_write;
+  close err_write;
   (inchan, outchan, errchan)
 
 let find_proc_id fun_name proc =
@@ -930,10 +1013,9 @@ external select :
 
 let open_connection sockaddr =
   let sock =
-    socket (domain_of_sockaddr sockaddr) SOCK_STREAM 0 in
+    socket ~cloexec:true (domain_of_sockaddr sockaddr) SOCK_STREAM 0 in
   try
     connect sock sockaddr;
-    set_close_on_exec sock;
     (in_channel_of_descr sock, out_channel_of_descr sock)
   with exn ->
     close sock; raise exn
@@ -941,7 +1023,7 @@ let open_connection sockaddr =
 let shutdown_connection inchan =
   shutdown (descr_of_in_channel inchan) SHUTDOWN_SEND
 
-let establish_server server_fun sockaddr =
+let establish_server _server_fun _sockaddr =
   invalid_arg "Unix.establish_server not implemented"
 
 (* Terminal interface *)
@@ -989,13 +1071,13 @@ type terminal_io = {
 
 type setattr_when = TCSANOW | TCSADRAIN | TCSAFLUSH
 
-let tcgetattr fd = invalid_arg "Unix.tcgetattr not implemented"
-let tcsetattr fd wh = invalid_arg "Unix.tcsetattr not implemented"
-let tcsendbreak fd n = invalid_arg "Unix.tcsendbreak not implemented"
-let tcdrain fd = invalid_arg "Unix.tcdrain not implemented"
+let tcgetattr _fd = invalid_arg "Unix.tcgetattr not implemented"
+let tcsetattr _fd _wh = invalid_arg "Unix.tcsetattr not implemented"
+let tcsendbreak _fd _n = invalid_arg "Unix.tcsendbreak not implemented"
+let tcdrain _fd = invalid_arg "Unix.tcdrain not implemented"
 
 type flush_queue = TCIFLUSH | TCOFLUSH | TCIOFLUSH
-let tcflush fd q = invalid_arg "Unix.tcflush not implemented"
+let tcflush _fd _q = invalid_arg "Unix.tcflush not implemented"
 type flow_action = TCOOFF | TCOON | TCIOFF | TCION
-let tcflow fd fl = invalid_arg "Unix.tcflow not implemented"
+let tcflow _fd _fl = invalid_arg "Unix.tcflow not implemented"
 let setsid () = invalid_arg "Unix.setsid not implemented"

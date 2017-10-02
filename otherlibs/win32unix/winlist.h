@@ -1,15 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*  Contributed by Sylvain Le Gall for Lexifi                          */
-/*                                                                     */
-/*  Copyright 2008 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../../LICENSE.  */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*   Contributed by Sylvain Le Gall for Lexifi                            */
+/*                                                                        */
+/*   Copyright 2008 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #ifndef _WINLIST_H
 #define _WINLIST_H
@@ -44,10 +46,10 @@ LPLIST list_next (LPLIST);
 
 #define LIST_NEXT(T, e) ((T)(list_next((LPLIST)(e))))
 
-/* Get number of element */
+/* Get the number of elements */
 int list_length (LPLIST);
 
-/* Concat two list. */
+/* Concatenate two lists */
 LPLIST list_concat (LPLIST, LPLIST);
 
 #endif /* _WINLIST_H */

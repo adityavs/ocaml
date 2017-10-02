@@ -1,18 +1,22 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 2001 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 2001 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #ifndef CAML_BACKTRACE_H
 #define CAML_BACKTRACE_H
+
+#ifdef CAML_INTERNALS
 
 #include "mlvalues.h"
 #include "exec.h"
@@ -105,7 +109,7 @@ CAMLprim value caml_record_backtrace(value vflag);
 #ifndef NATIVE_CODE
 
 /* Path to the file containing debug information, if any, or NULL. */
-CAMLextern char * caml_cds_file;
+CAMLextern char_os * caml_cds_file;
 
 /* Primitive called _only_ by runtime to record unwinded frames to
  * backtrace.  A similar primitive exists for native code, but with a
@@ -126,5 +130,7 @@ CAMLextern void caml_print_exception_backtrace(void);
 
 void caml_init_backtrace(void);
 CAMLexport void caml_init_debug_info(void);
+
+#endif /* CAML_INTERNALS */
 
 #endif /* CAML_BACKTRACE_H */

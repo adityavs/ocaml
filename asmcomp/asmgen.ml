@@ -1,16 +1,21 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* From lambda to assembly code *)
+
+[@@@ocaml.warning "+a-4-9-40-41-42"]
 
 open Format
 open Config
@@ -35,18 +40,58 @@ let pass_dump_linear_if ppf flag message phrase =
   if !flag then fprintf ppf "*** %s@.%a@." message Printlinear.fundecl phrase;
   phrase
 
-let clambda_dump_if ppf ulambda =
-  if !dump_clambda then Printclambda.clambda ppf ulambda; ulambda
+let flambda_raw_clambda_dump_if ppf
+      ({ Flambda_to_clambda. expr = ulambda; preallocated_blocks = _;
+        structured_constants; exported = _; } as input) =
+  if !dump_rawclambda then
+    begin
+      Format.fprintf ppf "@.clambda (before Un_anf):@.";
+      Printclambda.clambda ppf ulambda;
+      Symbol.Map.iter (fun sym cst ->
+          Format.fprintf ppf "%a:@ %a@."
+            Symbol.print sym
+            Printclambda.structured_constant cst)
+        structured_constants
+    end;
+  if !dump_cmm then Format.fprintf ppf "@.cmm:@.";
+  input
+
+type clambda_and_constants =
+  Clambda.ulambda *
+  Clambda.preallocated_block list *
+  Clambda.preallocated_constant list
+
+let raw_clambda_dump_if ppf
+      ((ulambda, _, structured_constants):clambda_and_constants) =
+  if !dump_rawclambda || !dump_clambda then
+    begin
+      Format.fprintf ppf "@.clambda:@.";
+      Printclambda.clambda ppf ulambda;
+      List.iter (fun {Clambda.symbol; definition} ->
+          Format.fprintf ppf "%s:@ %a@."
+            symbol
+            Printclambda.structured_constant definition)
+        structured_constants
+    end;
+  if !dump_cmm then Format.fprintf ppf "@.cmm:@."
 
 let rec regalloc ppf round fd =
   if round > 50 then
     fatal_error(fd.Mach.fun_name ^
                 ": function too complex, cannot complete register allocation");
   dump_if ppf dump_live "Liveness analysis" fd;
-  Interf.build_graph fd;
-  if !dump_interf then Printmach.interferences ppf ();
-  if !dump_prefer then Printmach.preferences ppf ();
-  Coloring.allocate_registers();
+  if !use_linscan then begin
+    (* Linear Scan *)
+    Interval.build_intervals fd;
+    if !dump_interval then Printmach.intervals ppf ();
+    Linscan.allocate_registers()
+  end else begin
+    (* Graph Coloring *)
+    Interf.build_graph fd;
+    if !dump_interf then Printmach.interferences ppf ();
+    if !dump_prefer then Printmach.preferences ppf ();
+    Coloring.allocate_registers()
+  end;
   dump_if ppf dump_regalloc "After register allocation" fd;
   let (newfd, redo_regalloc) = Reload.fundecl fd in
   dump_if ppf dump_reload "After insertion of reloading code" newfd;
@@ -60,27 +105,28 @@ let compile_fundecl (ppf : formatter) fd_cmm =
   Proc.init ();
   Reg.reset();
   fd_cmm
-  ++ Selection.fundecl
+  ++ Profile.record ~accumulate:true "selection" Selection.fundecl
   ++ pass_dump_if ppf dump_selection "After instruction selection"
-  ++ Comballoc.fundecl
+  ++ Profile.record ~accumulate:true "comballoc" Comballoc.fundecl
   ++ pass_dump_if ppf dump_combine "After allocation combining"
-  ++ CSE.fundecl
+  ++ Profile.record ~accumulate:true "cse" CSE.fundecl
   ++ pass_dump_if ppf dump_cse "After CSE"
-  ++ liveness ppf
-  ++ Deadcode.fundecl
+  ++ Profile.record ~accumulate:true "liveness" (liveness ppf)
+  ++ Profile.record ~accumulate:true "deadcode" Deadcode.fundecl
   ++ pass_dump_if ppf dump_live "Liveness analysis"
-  ++ Spill.fundecl
-  ++ liveness ppf
+  ++ Profile.record ~accumulate:true "spill" Spill.fundecl
+  ++ Profile.record ~accumulate:true "liveness" (liveness ppf)
   ++ pass_dump_if ppf dump_spill "After spilling"
-  ++ Split.fundecl
+  ++ Profile.record ~accumulate:true "split" Split.fundecl
   ++ pass_dump_if ppf dump_split "After live range splitting"
-  ++ liveness ppf
-  ++ regalloc ppf 1
-  ++ Linearize.fundecl
+  ++ Profile.record ~accumulate:true "liveness" (liveness ppf)
+  ++ Profile.record ~accumulate:true "regalloc" (regalloc ppf 1)
+  ++ Profile.record ~accumulate:true "available_regs" Available_regs.fundecl
+  ++ Profile.record ~accumulate:true "linearize" Linearize.fundecl
   ++ pass_dump_linear_if ppf dump_linear "Linearized code"
-  ++ Scheduling.fundecl
+  ++ Profile.record ~accumulate:true "scheduling" Scheduling.fundecl
   ++ pass_dump_linear_if ppf dump_scheduling "After instruction scheduling"
-  ++ Emit.fundecl
+  ++ Profile.record ~accumulate:true "emit" Emit.fundecl
 
 let compile_phrase ppf p =
   if !dump_cmm then fprintf ppf "%a@." Printcmm.phrase p;
@@ -99,7 +145,8 @@ let compile_genfuns ppf f =
        | _ -> ())
     (Cmmgen.generic_functions true [Compilenv.current_unit_infos ()])
 
-let compile_unit asm_filename keep_asm obj_filename gen =
+let compile_unit _output_prefix asm_filename keep_asm
+      obj_filename gen =
   let create_asm = keep_asm || not !Emitaux.binary_backend_available in
   Emitaux.create_asm_file := create_asm;
   try
@@ -112,19 +159,28 @@ let compile_unit asm_filename keep_asm obj_filename gen =
       if not keep_asm then remove_file asm_filename;
       raise exn
     end;
-    if Proc.assemble_file asm_filename obj_filename <> 0
+    let assemble_result =
+      Profile.record "assemble"
+        (Proc.assemble_file asm_filename) obj_filename
+    in
+    if assemble_result <> 0
     then raise(Error(Assembler_error asm_filename));
     if create_asm && not keep_asm then remove_file asm_filename
   with exn ->
     remove_file obj_filename;
     raise exn
 
-let gen_implementation ?toplevel ppf (size, lam) =
+let set_export_info (ulambda, prealloc, structured_constants, export) =
+  Compilenv.set_export_info export;
+  (ulambda, prealloc, structured_constants)
+
+let end_gen_implementation ?toplevel ppf
+    (clambda:clambda_and_constants) =
   Emit.begin_assembly ();
-  Closure.intro size lam
-  ++ clambda_dump_if ppf
-  ++ Cmmgen.compunit size
-  ++ List.iter (compile_phrase ppf) ++ (fun () -> ());
+  clambda
+  ++ Profile.record "cmm" Cmmgen.compunit
+  ++ Profile.record "compile_phrases" (List.iter (compile_phrase ppf))
+  ++ (fun () -> ());
   (match toplevel with None -> () | Some f -> compile_genfuns ppf f);
 
   (* We add explicit references to external primitive symbols.  This
@@ -140,14 +196,71 @@ let gen_implementation ?toplevel ppf (size, lam) =
     );
   Emit.end_assembly ()
 
-let compile_implementation ?toplevel prefixname ppf (size, lam) =
+let flambda_gen_implementation ?toplevel ~backend ppf
+    (program:Flambda.program) =
+  let export = Build_export_info.build_export_info ~backend program in
+  let (clambda, preallocated, constants) =
+    Profile.record_call "backend" (fun () ->
+      (program, export)
+      ++ Flambda_to_clambda.convert
+      ++ flambda_raw_clambda_dump_if ppf
+      ++ (fun { Flambda_to_clambda. expr; preallocated_blocks;
+                structured_constants; exported; } ->
+             (* "init_code" following the name used in
+                [Cmmgen.compunit_and_constants]. *)
+           Un_anf.apply expr ~what:"init_code", preallocated_blocks,
+           structured_constants, exported)
+      ++ set_export_info)
+  in
+  let constants =
+    List.map (fun (symbol, definition) ->
+        { Clambda.symbol = Linkage_name.to_string (Symbol.label symbol);
+          exported = true;
+          definition })
+      (Symbol.Map.bindings constants)
+  in
+  end_gen_implementation ?toplevel ppf
+    (clambda, preallocated, constants)
+
+let lambda_gen_implementation ?toplevel ppf
+    (lambda:Lambda.program) =
+  let clambda = Closure.intro lambda.main_module_block_size lambda.code in
+  let preallocated_block =
+    Clambda.{
+      symbol = Compilenv.make_symbol None;
+      exported = true;
+      tag = 0;
+      size = lambda.main_module_block_size;
+    }
+  in
+  let clambda_and_constants =
+    clambda, [preallocated_block], []
+  in
+  raw_clambda_dump_if ppf clambda_and_constants;
+  end_gen_implementation ?toplevel ppf clambda_and_constants
+
+let compile_implementation_gen ?toplevel prefixname
+    ~required_globals ppf gen_implementation program =
   let asmfile =
     if !keep_asm_file || !Emitaux.binary_backend_available
     then prefixname ^ ext_asm
     else Filename.temp_file "camlasm" ext_asm
   in
-  compile_unit asmfile !keep_asm_file (prefixname ^ ext_obj)
-    (fun () -> gen_implementation ?toplevel ppf (size, lam))
+  compile_unit prefixname asmfile !keep_asm_file
+      (prefixname ^ ext_obj) (fun () ->
+        Ident.Set.iter Compilenv.require_global required_globals;
+        gen_implementation ?toplevel ppf program)
+
+let compile_implementation_clambda ?toplevel prefixname
+    ppf (program:Lambda.program) =
+  compile_implementation_gen ?toplevel prefixname
+    ~required_globals:program.Lambda.required_globals
+    ppf lambda_gen_implementation program
+
+let compile_implementation_flambda ?toplevel prefixname
+    ~required_globals ~backend ppf (program:Flambda.program) =
+  compile_implementation_gen ?toplevel prefixname
+    ~required_globals ppf (flambda_gen_implementation ~backend) program
 
 (* Error report *)
 

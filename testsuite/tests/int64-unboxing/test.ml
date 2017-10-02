@@ -1,15 +1,3 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                 Jeremie Dimino, Jane Street Europe                  *)
-(*                                                                     *)
-(*  Copyright 2015 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
-
 external ( + ) : int64 -> int64 -> int64
   = "" "test_int64_add" [@@noalloc] [@@unboxed]
 external ( - ) : int64 -> int64 -> int64

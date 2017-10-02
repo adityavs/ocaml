@@ -1,15 +1,17 @@
-;***********************************************************************
-;*                                                                     *
-;*                                OCaml                                *
-;*                                                                     *
-;*            Xavier Leroy, projet Gallium, INRIA Rocquencourt         *
-;*                                                                     *
-;*  Copyright 2006 Institut National de Recherche en Informatique et   *
-;*  en Automatique.  All rights reserved.  This file is distributed    *
-;*  under the terms of the GNU Library General Public License, with    *
-;*  the special exception on linking described in file ../LICENSE.     *
-;*                                                                     *
-;***********************************************************************
+;**************************************************************************
+;*                                                                        *
+;*                                 OCaml                                  *
+;*                                                                        *
+;*             Xavier Leroy, projet Gallium, INRIA Rocquencourt           *
+;*                                                                        *
+;*   Copyright 2006 Institut National de Recherche en Informatique et     *
+;*     en Automatique.                                                    *
+;*                                                                        *
+;*   All rights reserved.  This file is distributed under the terms of    *
+;*   the GNU Lesser General Public License version 2.1, with the          *
+;*   special exception on linking described in the file LICENSE.          *
+;*                                                                        *
+;**************************************************************************
 
 ; Asm part of the runtime system, AMD64 processor, Intel syntax
 
@@ -35,6 +37,11 @@
 
         .CODE
 
+        PUBLIC  caml_system__code_begin
+caml_system__code_begin:
+        ret  ; just one instruction, so that debuggers don't display
+             ; caml_system__code_begin instead of caml_call_gc
+
 ; Allocation
 
         PUBLIC  caml_call_gc
@@ -46,6 +53,11 @@ caml_call_gc:
         lea     rax, [rsp+8]
         mov     caml_bottom_of_stack, rax
 L105:
+    ; Touch the stack to trigger a recoverable segfault
+    ; if insufficient space remains
+        sub     rsp, 01000h
+        mov     [rsp], rax
+        add     rsp, 01000h
     ; Save caml_young_ptr, caml_exception_pointer
         mov     caml_young_ptr, r15
         mov     caml_exception_pointer, r14
@@ -200,6 +212,11 @@ caml_c_call:
         pop     r12
         mov     caml_last_return_address, r12
         mov     caml_bottom_of_stack, rsp
+    ; Touch the stack to trigger a recoverable segfault
+    ; if insufficient space remains
+        sub     rsp, 01000h
+        mov     [rsp], rax
+        add     rsp, 01000h
     ; Make the exception handler and alloc ptr available to the C code
         mov     caml_young_ptr, r15
         mov     caml_exception_pointer, r14
@@ -307,8 +324,6 @@ caml_raise_exn:
         pop     r14                  ; Recover previous exception handler
         ret                          ; Branch to handler
 L110:
-        mov     caml_backtrace_pos, 0
-L111:
         mov     r12, rax             ; Save exception bucket in r12
         mov     rcx, rax             ; Arg 1: exception bucket
         mov     rdx, [rsp]           ; Arg 2: PC of raise
@@ -317,15 +332,6 @@ L111:
         sub     rsp, 32              ; Reserve 32 bytes on stack
         call    caml_stash_backtrace
         mov     rax, r12             ; Recover exception bucket
-        mov     rsp, r14             ; Cut stack
-        pop     r14                  ; Recover previous exception handler
-        ret                          ; Branch to handler
-
-        PUBLIC  caml_reraise_exn
-        ALIGN   16
-caml_reraise_exn:
-        test    caml_backtrace_active, 1
-        jne     L111
         mov     rsp, r14             ; Cut stack
         pop     r14                  ; Recover previous exception handler
         ret                          ; Branch to handler
@@ -453,6 +459,9 @@ caml_callback3_exn:
 caml_ml_array_bound_error:
         lea     rax, caml_array_bound_error
         jmp     caml_c_call
+
+	PUBLIC caml_system__code_end
+caml_system__code_end:
 
         .DATA
         PUBLIC  caml_system__frametable

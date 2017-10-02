@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Build libraries of .cmo files *)
 
@@ -26,7 +29,7 @@ exception Error of error
 let copy_compunit ic oc compunit =
   seek_in ic compunit.cu_pos;
   compunit.cu_pos <- pos_out oc;
-  compunit.cu_force_link <- !Clflags.link_everything;
+  compunit.cu_force_link <- compunit.cu_force_link || !Clflags.link_everything;
   copy_file_chunk ic oc compunit.cu_codesize;
   if compunit.cu_debug > 0 then begin
     seek_in ic compunit.cu_debug;
@@ -100,7 +103,9 @@ let create_archive ppf file_list lib_name =
         lib_ccopts = !Clflags.all_ccopts @ !lib_ccopts;
         lib_dllibs = !Clflags.dllibs @ !lib_dllibs } in
     let pos_toc = pos_out outchan in
-    output_value outchan toc;
+    Emitcode.marshal_to_channel_with_possibly_32bit_compat
+      ~filename:lib_name ~kind:"bytecode library"
+      outchan toc;
     seek_out outchan ofs_pos_toc;
     output_binary_int outchan pos_toc;
     close_out outchan

@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Representation and manipulation of classes and class types.*)
 
@@ -40,7 +43,7 @@ and class_apply = {
 
 and class_constr = {
     cco_name : Name.t ; (** The complete name of the applied class *)
-    mutable cco_class : cct option;  (** The associated class ot class type if we found it *)
+    mutable cco_class : cct option;  (** The associated class of the class type if we found it *)
     cco_type_parameters : Types.type_expr list; (** The type parameters of the class, if needed *)
   }
 
@@ -52,7 +55,7 @@ and class_kind =
   | Class_constr of class_constr (** a class used to give the type of the defined class,
                                     instead of a structure, used in interface only.
                                     For example, it will be used with the name "M1.M2....tutu"
-                                    when the class to is defined like this :
+                                    when the class toto is defined like this :
                                     class toto : int -> tutu *)
   | Class_constraint of class_kind * class_type_kind
         (** A class definition with a constraint. *)
@@ -111,7 +114,7 @@ let rec class_elements ?(trans=true) cl =
   let rec iter_kind k =
     match k with
       Class_structure (_, elements) -> elements
-    | Class_constraint (c_kind, ct_kind) ->
+    | Class_constraint (c_kind, _ct_kind) ->
         iter_kind c_kind
       (* FIXME : use c_kind or ct_kind ?
          For now, as ct_kind is not analyzed,

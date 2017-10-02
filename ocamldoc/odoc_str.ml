@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** The functions to get a string from different kinds of elements (types, modules, ...). *)
 
@@ -251,7 +254,7 @@ let string_of_type t =
       )
 
   | M.Type_open ->
-      "= .." (* FIXME MG: when introducing new constuctors next time,
+      "= .." (* FIXME MG: when introducing new constructors next time,
                 thanks to setup a minimal correct output *)
   | M.Type_record l ->
      P.sprintf "= %s{\n%s\n}\n" (if priv then "private " else "")
@@ -295,8 +298,11 @@ let string_of_type_extension te =
                            (List.map
                               (fun t -> "("^Odoc_print.string_of_type_expr t^")") l))
                       ^ " -> " ^ Odoc_print.string_of_type_expr r
-                  | T.Cstr_record _, _ ->
-                      assert false
+                  | T.Cstr_record l, None ->
+                      " of " ^  string_of_record l
+                  | T.Cstr_record l, Some r ->
+                      " : " ^ string_of_record l ^ " -> "
+                      ^ Odoc_print.string_of_type_expr r
                )
               ^(match x.M.xt_alias with
                     None -> ""
@@ -339,8 +345,11 @@ let string_of_exception e =
          (List.map (fun t -> "("^(Odoc_print.string_of_type_expr t)^")") l))^
        " -> "^
        (Odoc_print.string_of_type_expr r)
-   | T.Cstr_record _, _ ->
-       assert false
+   | T.Cstr_record l, None ->
+       " of " ^  string_of_record l
+   | T.Cstr_record l, Some r ->
+       " : " ^ string_of_record l ^ " -> "
+       ^ Odoc_print.string_of_type_expr r
   )^
   (match e.M.ex_alias with
     None -> ""

@@ -1,15 +1,3 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the Q Public License version 1.0.               */
-/*                                                                     */
-/***********************************************************************/
-
 /* The grammar for lexer definitions */
 
 %{
@@ -41,7 +29,8 @@ lexer_definition:
 ;
 header:
     Taction
-        { $1 }
+        { $1 (* '"' test that ocamlyacc can
+                    handle comments correctly"*)" "(*" *) }
   |
         { Location(0,0) }
 ;

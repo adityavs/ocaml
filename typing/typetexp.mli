@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Typechecking of type expressions for the core language *)
 
@@ -53,7 +56,7 @@ type error =
   | Invalid_variable_name of string
   | Cannot_quantify of string * type_expr
   | Multiple_constraints_on_type of Longident.t
-  | Repeated_method_label of string
+  | Method_mismatch of string * type_expr * type_expr
   | Unbound_value of Longident.t
   | Unbound_constructor of Longident.t
   | Unbound_label of Longident.t
@@ -66,6 +69,8 @@ type error =
   | Access_functor_as_structure of Longident.t
   | Apply_structure_as_functor of Longident.t
   | Cannot_scrape_alias of Longident.t * Path.t
+  | Opened_object of Path.t option
+  | Not_an_object of type_expr
 
 exception Error of Location.t * Env.t * error
 
@@ -108,14 +113,3 @@ val find_class_type:
 
 val unbound_constructor_error: Env.t -> Longident.t Location.loc -> 'a
 val unbound_label_error: Env.t -> Longident.t Location.loc -> 'a
-
-val check_deprecated: Location.t -> Parsetree.attributes -> string -> unit
-
-val warning_enter_scope: unit -> unit
-val warning_leave_scope: unit -> unit
-val warning_attribute: Parsetree.attributes -> unit
-val with_warning_attribute: Parsetree.attributes -> (unit -> 'a) -> 'a
-
-val error_of_extension: Parsetree.extension -> Location.error
-
-val emit_external_warnings: Ast_mapper.mapper

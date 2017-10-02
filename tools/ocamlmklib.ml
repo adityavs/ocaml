@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Printf
 open Ocamlmklibconfig
@@ -98,6 +101,12 @@ let parse_arguments argv =
     else if s = "-linkall" then
       caml_opts := s :: !caml_opts
     else if starts_with s "-l" then
+      let s =
+        if Config.ccomp_type = "msvc" then
+          String.sub s 2 (String.length s - 2) ^ ".lib"
+        else
+          s
+      in
       c_libs := s :: !c_libs
     else if starts_with s "-L" then
      (c_Lopts := s :: !c_Lopts;
@@ -239,26 +248,43 @@ let transl_path s =
         in Bytes.to_string (aux 0)
     | _ -> s
 
+let flexdll_dirs =
+  let dirs =
+    let expand = Misc.expand_directory Config.standard_library in
+    List.map expand Config.flexdll_dirs
+  in
+  let f dir =
+    let dir =
+      if String.contains dir ' ' then
+        "\"" ^ dir ^ "\""
+      else
+        dir
+    in
+      "-L" ^ dir
+  in
+  List.map f dirs
+
 let build_libs () =
   if !c_objs <> [] then begin
     if !dynlink then begin
       let retcode = command
-          (Printf.sprintf "%s %s -o %s %s %s %s %s %s"
-             mkdll
+          (Printf.sprintf "%s %s -o %s %s %s %s %s %s %s"
+             Config.mkdll
              (if !debug then "-g" else "")
-             (prepostfix "dll" !output_c ext_dll)
+             (prepostfix "dll" !output_c Config.ext_dll)
              (String.concat " " !c_objs)
              (String.concat " " !c_opts)
              (String.concat " " !ld_opts)
              (make_rpath mksharedlibrpath)
              (String.concat " " !c_libs)
+             (String.concat " " flexdll_dirs)
           )
       in
       if retcode <> 0 then if !failsafe then dynlink := false else exit 2
     end;
-    safe_remove (prepostfix "lib" !output_c ext_lib);
+    safe_remove (prepostfix "lib" !output_c Config.ext_lib);
     scommand
-      (mklib (prepostfix "lib" !output_c ext_lib)
+      (mklib (prepostfix "lib" !output_c Config.ext_lib)
              (String.concat " " !c_objs) "");
   end;
   if !bytecode_objs <> [] then
@@ -275,7 +301,7 @@ let build_libs () =
                   (Filename.basename !output_c)
                   (Filename.basename !output_c)
                   (String.concat " " (prefix_list "-ccopt " !c_opts))
-                  (make_rpath_ccopt byteccrpath)
+                  (make_rpath_ccopt default_rpath)
                   (String.concat " " (prefix_list "-cclib " !c_libs))
                   (String.concat " " !caml_libs));
   if !native_objs <> [] then
@@ -289,7 +315,7 @@ let build_libs () =
                   (String.concat " " !native_objs)
                   (Filename.basename !output_c)
                   (String.concat " " (prefix_list "-ccopt " !c_opts))
-                  (make_rpath_ccopt nativeccrpath)
+                  (make_rpath_ccopt default_rpath)
                   (String.concat " " (prefix_list "-cclib " !c_libs))
                   (String.concat " " !caml_libs))
 

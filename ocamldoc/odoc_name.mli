@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Representation of element names. *)
 
@@ -33,12 +36,12 @@ val normalize_name : t -> t
 (** Returns the head of a name. *)
 val head : t -> t
 
-(** Returns the depth of the name, i.e. the numer of levels to the root.
+(** Returns the depth of the name, i.e. the number of levels to the root.
    Example : [Toto.Tutu.name] has depth 3. *)
 val depth : t -> int
 
 (** Returns true if the first name is a prefix of the second name.
-   If the two names are equals, then if is false (strict prefix).*)
+   If the two names are equal, then it is false (strict prefix).*)
 val prefix : t -> t -> bool
 
 (** Take two names n1 and n2 = n3.n4 and return n4 if n3=n1 or else n2. *)
@@ -67,5 +70,4 @@ val to_path : t -> Path.t
 (** Get a name from a [Longident.t].*)
 val from_longident : Longident.t -> t
 
-(** Set of Name.t *)
-module Set : Set.S with type elt = t
+module Map : Map.S with type key = t

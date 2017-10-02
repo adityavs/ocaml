@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*        Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt       *)
-(*                                                                     *)
-(*  Copyright 2014 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*         Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt         *)
+(*                                                                        *)
+(*   Copyright 2014 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open X86_ast
 open X86_proc
@@ -281,7 +284,9 @@ let print_line b = function
         file_num (X86_proc.string_of_string_literal file_name)
   | Indirect_symbol s -> bprintf b "\t.indirect_symbol %s" s
   | Loc (file_num, line, col) ->
-      bprintf b "\t.loc\t%d\t%d\t%d" file_num line col
+      (* PR#7726: Location.none uses column -1, breaks LLVM assembler *)
+      if col >= 0 then bprintf b "\t.loc\t%d\t%d\t%d" file_num line col
+      else bprintf b "\t.loc\t%d\t%d" file_num line
   | Private_extern s -> bprintf b "\t.private_extern %s" s
   | Set (arg1, arg2) -> bprintf b "\t.set %s, %a" arg1 cst arg2
   | Size (s, c) -> bprintf b "\t.size %s,%a" s cst c
@@ -295,6 +300,7 @@ let print_line b = function
 
 let generate_asm oc lines =
   let b = Buffer.create 10000 in
+  output_string oc "\t.file \"\"\n"; (* PR#7037 *)
   List.iter
     (fun i ->
        Buffer.clear b;

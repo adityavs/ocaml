@@ -1,15 +1,3 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
-
 (* Tests for matchings on integers and characters *)
 
 (* Dense integer switch *)
@@ -63,10 +51,12 @@ let l = function
 
 open Printf
 
-external string_create: int -> string = "caml_create_string"
+external bytes_create: int -> bytes = "caml_create_bytes"
 external unsafe_chr: int -> char = "%identity"
-external string_unsafe_set : string -> int -> char -> unit
-                           = "%string_unsafe_set"
+external bytes_unsafe_set : bytes -> int -> char -> unit
+                           = "%bytes_unsafe_set"
+
+external unsafe_to_string : bytes -> string = "%bytes_to_string"
 
 (* The following function is roughly equivalent to Char.escaped,
    except that it is locale-independent. *)
@@ -79,17 +69,17 @@ let escaped = function
   | '\b' -> "\\b"
   | c ->
     if ((k c) <> "othr") && ((Char.code c) <= 191) then begin
-      let s = string_create 1 in
-      string_unsafe_set s 0 c;
-      s
+      let s = bytes_create 1 in
+      bytes_unsafe_set s 0 c;
+      unsafe_to_string s
     end else begin
       let n = Char.code c in
-      let s = string_create 4 in
-      string_unsafe_set s 0 '\\';
-      string_unsafe_set s 1 (unsafe_chr (48 + n / 100));
-      string_unsafe_set s 2 (unsafe_chr (48 + (n / 10) mod 10));
-      string_unsafe_set s 3 (unsafe_chr (48 + n mod 10));
-      s
+      let s = bytes_create 4 in
+      bytes_unsafe_set s 0 '\\';
+      bytes_unsafe_set s 1 (unsafe_chr (48 + n / 100));
+      bytes_unsafe_set s 2 (unsafe_chr (48 + (n / 10) mod 10));
+      bytes_unsafe_set s 3 (unsafe_chr (48 + n mod 10));
+      unsafe_to_string s
     end
 
 let _ =
@@ -155,18 +145,6 @@ let test e b =
 let () =
   let r = test Foo false in
   if r = 0 then printf "PR#5788=Ok\n"
-
-
-(* No string sharing PR#6322 *)
-let test x = match x with
-  | true -> "a"
-  | false -> "a"
-
-let () =
-  let s1 = test true in
-  let s2 = test false in
-  s1.[0] <- 'p';
-  if s1 <> s2 then printf "PR#6322=Ok\n%!"
 
 (* PR#6646 Avoid explosion of default cases when there are many constructors *)
 
@@ -1610,3 +1588,48 @@ let f = function
   | _ -> false
 
 let () =  printf "PR#6676=Ok\n%!"
+
+(* GPR#234, allow ``[]`` as a user defined constructor *)
+module GPR234HList = struct
+
+  type _ cell =
+    | Int : int -> int cell
+    | Pair : int * int -> (int * int) cell
+    | StrInt : string -> string cell
+    | List : int list -> int list cell
+
+  type hlist =
+    | [] : hlist
+    | ( :: ) : 'a cell * hlist -> hlist
+
+  type 'b foldf = {
+    f: 'a. 'a cell -> 'b -> 'b
+  }
+
+  let fold_hlist : 'b foldf -> 'b -> hlist -> 'b = fun f init l ->
+    let rec loop : hlist -> 'b -> 'b = fun l acc ->
+      match l with
+      | [] -> acc
+      | hd :: tl -> loop tl (f.f hd acc) in
+    loop l init
+
+  let to_int_fold : type a. a cell -> int -> int = fun cell acc ->
+    match cell with
+    | Int x -> x + acc
+    | Pair (x, y) -> x + y + acc
+    | StrInt str -> int_of_string str + acc
+    | List l -> acc + List.fold_left (+) 0 l
+
+  let sum l = fold_hlist {f=to_int_fold} 0 l
+
+  let l = List [1; 2; 3] (* still fine to use normal list here *)
+
+  let ll = [Int 3; Pair (4, 5); StrInt "30"; l]
+
+  let test () = Printf.printf "%d\n" (sum ll)
+
+end
+
+let () = GPR234HList.test ()
+
+let () = printf "GPR#234=Ok\n%!"

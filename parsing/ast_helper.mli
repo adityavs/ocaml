@@ -1,20 +1,23 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                        Alain Frisch, LexiFi                         *)
-(*                                                                     *)
-(*  Copyright 2012 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                         Alain Frisch, LexiFi                           *)
+(*                                                                        *)
+(*   Copyright 2012 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Helpers to produce Parsetree fragments *)
 
-open Parsetree
 open Asttypes
 open Docstrings
+open Parsetree
 
 type lid = Longident.t loc
 type str = string loc
@@ -30,6 +33,19 @@ val with_default_loc: loc -> (unit -> 'a) -> 'a
     (** Set the [default_loc] within the scope of the execution
         of the provided function. *)
 
+(** {2 Constants} *)
+
+module Const : sig
+  val char : char -> constant
+  val string : ?quotation_delimiter:string -> string -> constant
+  val integer : ?suffix:char -> string -> constant
+  val int : ?suffix:char -> int -> constant
+  val int32 : ?suffix:char -> int32 -> constant
+  val int64 : ?suffix:char -> int64 -> constant
+  val nativeint : ?suffix:char -> nativeint -> constant
+  val float : ?suffix:char -> string -> constant
+end
+
 (** {2 Core language} *)
 
 (** Type expressions *)
@@ -44,19 +60,27 @@ module Typ :
                -> core_type
     val tuple: ?loc:loc -> ?attrs:attrs -> core_type list -> core_type
     val constr: ?loc:loc -> ?attrs:attrs -> lid -> core_type list -> core_type
-    val object_: ?loc:loc -> ?attrs:attrs ->
-                  (string * attributes * core_type) list -> closed_flag ->
-                  core_type
+    val object_: ?loc:loc -> ?attrs:attrs -> object_field list
+                   -> closed_flag -> core_type
     val class_: ?loc:loc -> ?attrs:attrs -> lid -> core_type list -> core_type
     val alias: ?loc:loc -> ?attrs:attrs -> core_type -> string -> core_type
     val variant: ?loc:loc -> ?attrs:attrs -> row_field list -> closed_flag
                  -> label list option -> core_type
-    val poly: ?loc:loc -> ?attrs:attrs -> string list -> core_type -> core_type
+    val poly: ?loc:loc -> ?attrs:attrs -> str list -> core_type -> core_type
     val package: ?loc:loc -> ?attrs:attrs -> lid -> (lid * core_type) list
                  -> core_type
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> core_type
 
     val force_poly: core_type -> core_type
+
+    val varify_constructors: str list -> core_type -> core_type
+    (** [varify_constructors newtypes te] is type expression [te], of which
+        any of nullary type constructor [tc] is replaced by type variable of
+        the same name, if [tc]'s name appears in [newtypes].
+        Raise [Syntaxerr.Variable_in_scope] if any type variable inside [te]
+        appears in [newtypes].
+        @since 4.05
+     *)
   end
 
 (** Patterns *)
@@ -81,6 +105,7 @@ module Pat:
     val type_: ?loc:loc -> ?attrs:attrs -> lid -> pattern
     val lazy_: ?loc:loc -> ?attrs:attrs -> pattern -> pattern
     val unpack: ?loc:loc -> ?attrs:attrs -> str -> pattern
+    val open_: ?loc:loc -> ?attrs:attrs  -> lid -> pattern -> pattern
     val exception_: ?loc:loc -> ?attrs:attrs -> pattern -> pattern
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> pattern
   end
@@ -126,19 +151,22 @@ module Exp:
                 -> core_type -> expression
     val constraint_: ?loc:loc -> ?attrs:attrs -> expression -> core_type
                      -> expression
-    val send: ?loc:loc -> ?attrs:attrs -> expression -> string -> expression
+    val send: ?loc:loc -> ?attrs:attrs -> expression -> str -> expression
     val new_: ?loc:loc -> ?attrs:attrs -> lid -> expression
     val setinstvar: ?loc:loc -> ?attrs:attrs -> str -> expression -> expression
     val override: ?loc:loc -> ?attrs:attrs -> (str * expression) list
                   -> expression
     val letmodule: ?loc:loc -> ?attrs:attrs -> str -> module_expr -> expression
                    -> expression
+    val letexception:
+      ?loc:loc -> ?attrs:attrs -> extension_constructor -> expression
+      -> expression
     val assert_: ?loc:loc -> ?attrs:attrs -> expression -> expression
     val lazy_: ?loc:loc -> ?attrs:attrs -> expression -> expression
     val poly: ?loc:loc -> ?attrs:attrs -> expression -> core_type option
               -> expression
     val object_: ?loc:loc -> ?attrs:attrs -> class_structure -> expression
-    val newtype: ?loc:loc -> ?attrs:attrs -> string -> expression -> expression
+    val newtype: ?loc:loc -> ?attrs:attrs -> str -> expression -> expression
     val pack: ?loc:loc -> ?attrs:attrs -> module_expr -> expression
     val open_: ?loc:loc -> ?attrs:attrs -> override_flag -> lid -> expression
                -> expression
@@ -290,21 +318,20 @@ module Mb:
       str -> module_expr -> module_binding
   end
 
-(* Opens *)
+(** Opens *)
 module Opn:
   sig
     val mk: ?loc: loc -> ?attrs:attrs -> ?docs:docs ->
       ?override:override_flag -> lid -> open_description
   end
 
-(* Includes *)
+(** Includes *)
 module Incl:
   sig
     val mk: ?loc: loc -> ?attrs:attrs -> ?docs:docs -> 'a -> 'a include_infos
   end
 
 (** Value bindings *)
-
 module Vb:
   sig
     val mk: ?loc: loc -> ?attrs:attrs -> ?docs:docs -> ?text:text ->
@@ -325,6 +352,8 @@ module Cty:
     val arrow: ?loc:loc -> ?attrs:attrs -> arg_label -> core_type ->
       class_type -> class_type
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> class_type
+    val open_: ?loc:loc -> ?attrs:attrs -> override_flag -> lid -> class_type
+               -> class_type
   end
 
 (** Class type fields *)
@@ -335,9 +364,9 @@ module Ctf:
     val attr: class_type_field -> attribute -> class_type_field
 
     val inherit_: ?loc:loc -> ?attrs:attrs -> class_type -> class_type_field
-    val val_: ?loc:loc -> ?attrs:attrs -> string -> mutable_flag ->
+    val val_: ?loc:loc -> ?attrs:attrs -> str -> mutable_flag ->
       virtual_flag -> core_type -> class_type_field
-    val method_: ?loc:loc -> ?attrs:attrs -> string -> private_flag ->
+    val method_: ?loc:loc -> ?attrs:attrs -> str -> private_flag ->
       virtual_flag -> core_type -> class_type_field
     val constraint_: ?loc:loc -> ?attrs:attrs -> core_type -> core_type ->
       class_type_field
@@ -363,6 +392,8 @@ module Cl:
     val constraint_: ?loc:loc -> ?attrs:attrs -> class_expr -> class_type ->
       class_expr
     val extension: ?loc:loc -> ?attrs:attrs -> extension -> class_expr
+    val open_: ?loc:loc -> ?attrs:attrs -> override_flag -> lid -> class_expr
+               -> class_expr
   end
 
 (** Class fields *)
@@ -373,7 +404,7 @@ module Cf:
     val attr: class_field -> attribute -> class_field
 
     val inherit_: ?loc:loc -> ?attrs:attrs -> override_flag -> class_expr ->
-      string option -> class_field
+      str option -> class_field
     val val_: ?loc:loc -> ?attrs:attrs -> str -> mutable_flag ->
       class_field_kind -> class_field
     val method_: ?loc:loc -> ?attrs:attrs -> str -> private_flag ->

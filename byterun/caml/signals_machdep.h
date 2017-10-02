@@ -1,20 +1,24 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*         Xavier Leroy and Damien Doligez, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*          Xavier Leroy and Damien Doligez, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 /* Processor-specific operation: atomic "read and clear" */
 
 #ifndef CAML_SIGNALS_MACHDEP_H
 #define CAML_SIGNALS_MACHDEP_H
+
+#ifdef CAML_INTERNALS
 
 #if defined(__GNUC__) && defined(__ATOMIC_SEQ_CST) \
     && defined(__GCC_ATOMIC_LONG_LOCK_FREE)
@@ -64,5 +68,7 @@
 #define Read_and_clear(dst,src) ((dst) = (src), (src) = 0)
 
 #endif
+
+#endif /* CAML_INTERNALS */
 
 #endif /* CAML_SIGNALS_MACHDEP_H */

@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Miscellaneous functions *)
 
@@ -61,8 +64,13 @@ val string_of_info : Odoc_types.info -> string
 val apply_opt : ('a -> 'b) -> 'a option -> 'b option
 
 (** Return a string representing a date given as a number of seconds
-   since 1970. The hour is optionnaly displayed. *)
-val string_of_date : ?hour:bool -> float -> string
+   since 1970. The hour is optionally displayed. *)
+val string_of_date : ?absolute:bool -> ?hour:bool -> float -> string
+
+(* Value returned by string_of_date for current time.
+ * Uses environment variable SOURCE_DATE_EPOCH if set; falls back to
+ * current timestamp otherwise. *)
+val current_date : string
 
 (** Return the first sentence (until the first dot) of a text.
    Don't stop in the middle of [Code], [Verbatim], [List], [Lnum],
@@ -102,7 +110,7 @@ val remove_ending_newline : string -> string
 val search_string_backward : pat: string -> s: string -> int
 
 (** Take a type and remove the option top constructor. This is
-   useful when printing labels, we we then remove the top option contructor
+   useful when printing labels, we then remove the top option constructor
    for optional labels.*)
 val remove_option : Types.type_expr -> Types.type_expr
 

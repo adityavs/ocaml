@@ -1,15 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 /* Operating system and standard library dependencies. */
 
@@ -90,10 +92,8 @@
 /* Define HAS_MKFIFO if the library provides the mkfifo() function. */
 
 #define HAS_GETCWD
-#define HAS_GETWD
 
 /* Define HAS_GETCWD if the library provides the getcwd() function. */
-/* Define HAS_GETWD if the library provides the getwd() function. */
 
 #define HAS_GETPRIORITY
 
@@ -127,6 +127,9 @@
 
 /* Define HAS_SYS_SELECT_H if /usr/include/sys/select.h exists
    and should be included before using select(). */
+
+#define HAS_NANOSLEEP
+/* Define HAS_NANOSLEEP if you have nanosleep(). */
 
 #define HAS_SYMLINK
 

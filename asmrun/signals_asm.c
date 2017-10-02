@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Gallium, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 2007 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Gallium, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 2007 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Signal handling, code specific to the native-code compiler */
 
@@ -25,7 +29,8 @@
 #include "caml/signals.h"
 #include "caml/signals_machdep.h"
 #include "signals_osdep.h"
-#include "stack.h"
+#include "caml/stack.h"
+#include "caml/spacetime.h"
 
 #ifdef HAS_STACK_OVERFLOW_DETECTION
 #include <sys/time.h>
@@ -67,10 +72,18 @@ extern char caml_system__code_begin, caml_system__code_end;
 
 void caml_garbage_collection(void)
 {
-  caml_young_limit = caml_young_start;
-  if (caml_young_ptr < caml_young_start || caml_force_major_slice) {
-    caml_minor_collection();
+  caml_young_limit = caml_young_trigger;
+  if (caml_requested_major_slice || caml_requested_minor_gc ||
+      caml_young_ptr - caml_young_trigger < Max_young_whsize){
+    caml_gc_dispatch ();
   }
+
+#ifdef WITH_SPACETIME
+  if (caml_young_ptr == caml_young_alloc_end) {
+    caml_spacetime_automatic_snapshot();
+  }
+#endif
+
   caml_process_pending_signals();
 }
 
@@ -144,20 +157,10 @@ int caml_set_signal_action(int signo, int action)
 
 /* Machine- and OS-dependent handling of bound check trap */
 
-#if defined(TARGET_power) || defined(TARGET_s390x) || (defined(TARGET_sparc) && defined(SYS_solaris))
+#if defined(TARGET_power) \
+  || defined(TARGET_s390x)
 DECLARE_SIGNAL_HANDLER(trap_handler)
 {
-#if defined(SYS_solaris)
-  if (info->si_code != ILL_ILLTRP) {
-    /* Deactivate our exception handler and return. */
-    struct sigaction act;
-    act.sa_handler = SIG_DFL;
-    act.sa_flags = 0;
-    sigemptyset(&act.sa_mask);
-    sigaction(sig, &act, NULL);
-    return;
-  }
-#endif
 #if defined(SYS_rhapsody)
   /* Unblock SIGTRAP */
   { sigset_t mask;
@@ -247,14 +250,6 @@ DECLARE_SIGNAL_HANDLER(segv_handler)
 void caml_init_signals(void)
 {
   /* Bound-check trap handling */
-#if defined(TARGET_sparc) && defined(SYS_solaris)
-  { struct sigaction act;
-    sigemptyset(&act.sa_mask);
-    SET_SIGACT(act, trap_handler);
-    act.sa_flags |= SA_NODEFER;
-    sigaction(SIGILL, &act, NULL);
-  }
-#endif
 
 #if defined(TARGET_power)
   { struct sigaction act;
@@ -289,8 +284,5 @@ void caml_init_signals(void)
     system_stack_top = (char *) &act;
     if (sigaltstack(&stk, NULL) == 0) { sigaction(SIGSEGV, &act, NULL); }
   }
-#endif
-#if defined(_WIN32) && !defined(_WIN64)
-  caml_win32_overflow_detection();
 #endif
 }

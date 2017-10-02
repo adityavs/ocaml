@@ -1,15 +1,3 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Gallium, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 2013 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
-
 open Printf
 
 (* Test integer division and modulus, esp. ocamlopt's optimization
@@ -150,3 +138,8 @@ let _ =
 (* PR#6879 *)
 let f n = assert (1 mod n = 0)
 let () = f 1
+
+
+type t = {x: int; y:int}
+let f x = {x; y = x/0}.x
+let () = try ignore (f 1); assert false with Division_by_zero -> ()

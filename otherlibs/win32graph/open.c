@@ -1,15 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*  Developed by Jacob Navia, based on code by J-M Geffroy and X Leroy */
-/*                                                                     */
-/*  Copyright 2001 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../../LICENSE.  */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*   Developed by Jacob Navia, based on code by J-M Geffroy and X Leroy   */
+/*                                                                        */
+/*   Copyright 2001 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #include <fcntl.h>
 #include <signal.h>
@@ -42,15 +44,15 @@ HANDLE hInst;
 
 HFONT CreationFont(char *name)
 {
-   LOGFONT CurrentFont;
-   memset(&CurrentFont, 0, sizeof(LOGFONT));
+   LOGFONTA CurrentFont;
+   memset(&CurrentFont, 0, sizeof(LOGFONTA));
    CurrentFont.lfCharSet = ANSI_CHARSET;
    CurrentFont.lfWeight = FW_NORMAL;
    CurrentFont.lfHeight = grwindow.CurrentFontSize;
    CurrentFont.lfPitchAndFamily = (BYTE) (FIXED_PITCH | FF_MODERN);
    strncpy(CurrentFont.lfFaceName, name, sizeof(CurrentFont.lfFaceName));
    CurrentFont.lfFaceName[sizeof(CurrentFont.lfFaceName) - 1] = 0;
-   return (CreateFontIndirect(&CurrentFont));
+   return (CreateFontIndirectA(&CurrentFont));
 }
 
 void SetCoordinates(HWND hwnd)
@@ -102,7 +104,6 @@ static LRESULT CALLBACK GraphicsWndProc(HWND hwnd,UINT msg,WPARAM wParam,
                 // End application
         case WM_DESTROY:
                 ResetForClose(hwnd);
-                gr_check_open();
                 break;
         }
         caml_gr_handle_event(msg, wParam, lParam);
@@ -111,7 +112,7 @@ static LRESULT CALLBACK GraphicsWndProc(HWND hwnd,UINT msg,WPARAM wParam,
 
 int DoRegisterClass(void)
 {
-        WNDCLASS wc;
+        WNDCLASSA wc;
 
         memset(&wc,0,sizeof(WNDCLASS));
         wc.style = CS_HREDRAW|CS_VREDRAW|CS_OWNDC ;
@@ -122,7 +123,7 @@ int DoRegisterClass(void)
         wc.lpszMenuName = 0;
         wc.hCursor = LoadCursor(NULL,IDC_ARROW);
         wc.hIcon = 0;
-        return RegisterClass(&wc);
+        return RegisterClassA(&wc);
 }
 
 static value gr_reset(void)
@@ -211,12 +212,12 @@ static DWORD WINAPI gr_open_graph_internal(value arg)
         return 1;
       }
     }
-    grwindow.hwnd = CreateWindow(szOcamlWindowClass,
-                                 WINDOW_NAME,
-                                 WS_OVERLAPPEDWINDOW,
-                                 x,y,
-                                 w,h,
-                                 NULL,0,hInst,NULL);
+    grwindow.hwnd = CreateWindowA(szOcamlWindowClass,
+                                  WINDOW_NAME,
+                                  WS_OVERLAPPEDWINDOW,
+                                  x,y,
+                                  w,h,
+                                  NULL,0,hInst,NULL);
     if (grwindow.hwnd == NULL) {
       open_graph_errmsg = "Cannot create window";
       SetEvent(open_graph_event);
@@ -259,7 +260,7 @@ static DWORD WINAPI gr_open_graph_internal(value arg)
 
 CAMLprim value caml_gr_open_graph(value arg)
 {
-  long tid;
+  DWORD tid;
   if (gr_initialized) return Val_unit;
   open_graph_event = CreateEvent(NULL, FALSE, FALSE, NULL);
   threadHandle =
@@ -358,11 +359,11 @@ void gr_fail(char *fmt, char *arg)
   if (graphic_failure_exn == NULL) {
     graphic_failure_exn = caml_named_value("Graphics.Graphic_failure");
     if (graphic_failure_exn == NULL)
-      invalid_argument("Exception Graphics.Graphic_failure not initialized, "
+      caml_invalid_argument("Exception Graphics.Graphic_failure not initialized, "
                        "must link graphics.cma");
   }
   sprintf(buffer, fmt, arg);
-  raise_with_string(*graphic_failure_exn, buffer);
+  caml_raise_with_string(*graphic_failure_exn, buffer);
 }
 
 void gr_check_open(void)

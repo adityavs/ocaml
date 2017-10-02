@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Operations on core types *)
 
@@ -78,7 +81,7 @@ val set_object_name:
 val remove_object_name: type_expr -> unit
 val hide_private_methods: type_expr -> unit
 val find_cltype_for_path: Env.t -> Path.t -> type_declaration * type_expr
-val lid_of_path: ?sharp:string -> Path.t -> Longident.t
+val lid_of_path: ?hash:string -> Path.t -> Longident.t
 
 val sort_row_fields: (label * row_field) list -> (label * row_field) list
 val merge_row_fields:
@@ -90,8 +93,6 @@ val filter_row_fields:
 
 val generalize: type_expr -> unit
         (* Generalize in-place the given type *)
-val iterative_generalization: int -> type_expr list -> type_expr list
-        (* Efficient repeated generalization of a type *)
 val generalize_expansive: Env.t -> type_expr -> unit
         (* Generalize the covariant part of a type, making
            contravariant branches non-generalizable *)
@@ -115,7 +116,7 @@ val instance: ?partial:bool -> Env.t -> type_expr -> type_expr
            partial=true  -> newty2 ty.level Tvar for non generic subterms *)
 val instance_def: type_expr -> type_expr
         (* use defaults *)
-val generic_instance: ?partial:bool -> Env.t -> type_expr -> type_expr
+val generic_instance: Env.t -> type_expr -> type_expr
         (* Same as instance, but new nodes at generic_level *)
 val instance_list: Env.t -> type_expr list -> type_expr list
         (* Take an instance of a list of type schemes *)
@@ -169,6 +170,8 @@ val unify_gadt: newtype_level:int -> Env.t ref -> type_expr -> type_expr -> unit
 val unify_var: Env.t -> type_expr -> type_expr -> unit
         (* Same as [unify], but allow free univars when first type
            is a variable. *)
+val with_passive_variants: ('a -> 'b) -> ('a -> 'b)
+        (* Call [f] in passive_variants mode, for exhaustiveness check. *)
 val filter_arrow: Env.t -> type_expr -> arg_label -> type_expr * type_expr
         (* A special case of unification (with l:'a -> 'b). *)
 val filter_method: Env.t -> string -> private_flag -> type_expr -> type_expr
@@ -225,7 +228,7 @@ val enlarge_type: Env.t -> type_expr -> type_expr * bool
 val subtype: Env.t -> type_expr -> type_expr -> unit -> unit
         (* [subtype env t1 t2] checks that [t1] is a subtype of [t2].
            It accumulates the constraints the type variables must
-           enforce and returns a function that inforce this
+           enforce and returns a function that enforces this
            constraints. *)
 
 val nondep_type: Env.t -> Ident.t -> type_expr -> type_expr
@@ -279,6 +282,9 @@ val collapse_conj_params: Env.t -> type_expr list -> unit
 val get_current_level: unit -> int
 val wrap_trace_gadt_instances: Env.t -> ('a -> 'b) -> 'a -> 'b
 val reset_reified_var_counter: unit -> unit
+
+val maybe_pointer_type : Env.t -> type_expr -> bool
+       (* True if type is possibly pointer, false if definitely not a pointer *)
 
 (* Stubs *)
 val package_subtype :

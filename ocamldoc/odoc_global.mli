@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Global variables. *)
 
@@ -42,7 +45,7 @@ val no_stop : bool ref
 (** We must raise an exception when we find an unknown @-tag. *)
 val no_custom_tags : bool ref
 
-(** We must remove the the first characters of each comment line, until the first asterisk '*'. *)
+(** We must remove the first characters of each comment line, until the first asterisk '*'. *)
 val remove_stars : bool ref
 
 (** To keep the code while merging, when we have both .ml and .mli files for a module. *)
@@ -59,11 +62,15 @@ val hidden_modules : string list ref
 
 (** The files to be analysed. *)
 val files : source_file list ref
+
 (** A counter for errors. *)
 val errors : int ref
 
 (** Indicate if a warning is an error. *)
 val warn_error : bool ref
+
+(** Show code fragments that could be transformed into a cross-reference. *)
+val show_missed_crossref: bool ref
 
 (** Print the given warning, adding it to the list of {!errors}
 if {!warn_error} is [true]. *)

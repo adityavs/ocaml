@@ -32,7 +32,8 @@ type 'a pair = {left: 'a; right: 'a};;
 
 let f : (int t box pair * bool) option -> unit = function None -> ();;
 let f : (string t box pair * bool) option -> unit = function None -> ();;
-
+let f = function {left=Box 0; _ } -> ();;
+let f = function {left=Box 0;right=Box 1} -> ();;
 
 (* Examples from ML2015 paper *)
 
@@ -94,11 +95,19 @@ let inv_zero : type a b c d. (a,b,c) plus -> (c,d,zero) plus -> bool =
 (* Empty match *)
 
 type _ t = Int : int t;;
-let f (x : bool t) = match x with _ -> . ;;
+let f (x : bool t) = match x with _ -> . ;; (* ok *)
 
 
 (* trefis in PR#6437 *)
 
-let f () = match None with _ -> .;;
-let g () = match None with _ -> () | exception _ -> .;;
-let h () = match None with _ -> .  | exception _ -> .;; 
+let f () = match None with _ -> .;; (* error *)
+let g () = match None with _ -> () | exception _ -> .;; (* error *)
+let h () = match None with _ -> .  | exception _ -> .;; (* error *)
+let f x = match x with _ -> () | None -> .;; (* do not warn *)
+
+(* #7059, all clauses guarded *)
+
+let f x y = match 1 with 1 when x = y -> 1;;
+
+(* #7504, Example with no constraints on a record *)
+let f = function {contents=_}, 0 -> 0;;

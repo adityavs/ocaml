@@ -1,30 +1,34 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1998 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1998 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* The launcher for bytecode executables (if #! is not working) */
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "../config/s.h"
+#include "caml/s.h"
 #ifdef HAS_UNISTD
 #include <unistd.h>
 #endif
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "../byterun/caml/mlvalues.h"
-#include "../byterun/caml/exec.h"
+#include "caml/mlvalues.h"
+#include "caml/exec.h"
 
 char * default_runtime_path = RUNTIME_NAME;
 

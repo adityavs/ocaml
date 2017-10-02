@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* Read and output terminal commands */
 
@@ -60,7 +64,7 @@ CAMLprim value caml_terminfo_setup (value vchan)
     standout = tgetstr ("so", &area_p);
     standend = tgetstr ("se", &area_p);
   }
-  Assert (area_p <= area + 1024);
+  CAMLassert (area_p <= area + 1024);
   if (num_lines == -1 || up == NULL || down == NULL
       || standout == NULL || standend == NULL){
     return Bad_term;
@@ -72,7 +76,7 @@ CAMLprim value caml_terminfo_setup (value vchan)
 
 static int terminfo_putc (int c)
 {
-  putch (chan, c);
+  caml_putch (chan, c);
   return c;
 }
 

@@ -1,15 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*         Xavier Leroy and Damien Doligez, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*          Xavier Leroy and Damien Doligez, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 #ifndef CAML_MLVALUES_H
 #define CAML_MLVALUES_H
@@ -92,10 +94,33 @@ For 64-bit architectures:
      +--------+-------+-----+
 bits  63    10 9     8 7   0
 
+For x86-64 with Spacetime profiling:
+  P = PROFINFO_WIDTH (as set by "configure", currently 26 bits, giving a
+    maximum block size of just under 4Gb)
+     +----------------+----------------+-------------+
+     | profiling info | wosize         | color | tag |
+     +----------------+----------------+-------------+
+bits  63        (64-P) (63-P)        10 9     8 7   0
+
 */
 
+#define PROFINFO_SHIFT (64 - PROFINFO_WIDTH)
+#define PROFINFO_MASK ((1ull << PROFINFO_WIDTH) - 1ull)
+
 #define Tag_hd(hd) ((tag_t) ((hd) & 0xFF))
+#ifdef WITH_PROFINFO
+#define Hd_no_profinfo(hd) ((hd) & ~(PROFINFO_MASK << PROFINFO_SHIFT))
+#define Wosize_hd(hd) ((mlsize_t) ((Hd_no_profinfo(hd)) >> 10))
+#else
 #define Wosize_hd(hd) ((mlsize_t) ((hd) >> 10))
+#endif /* WITH_PROFINFO */
+#if defined(ARCH_SIXTYFOUR) && defined(WITH_PROFINFO)
+/* [Profinfo_hd] is used when the compiler is not configured for Spacetime
+   (e.g. when decoding profiles). */
+#define Profinfo_hd(hd) (((mlsize_t) ((hd) >> PROFINFO_SHIFT)) & PROFINFO_MASK)
+#else
+#define Profinfo_hd(hd) ((hd) & 0)
+#endif /* ARCH_SIXTYFOUR && WITH_PROFINFO */
 
 #define Hd_val(val) (((header_t *) (val)) [-1])        /* Also an l-value. */
 #define Hd_op(op) (Hd_val (op))                        /* Also an l-value. */
@@ -111,10 +136,10 @@ bits  63    10 9     8 7   0
 
 #define Num_tags (1 << 8)
 #ifdef ARCH_SIXTYFOUR
-#define Max_wosize (((intnat)1 << 54) - 1)
+#define Max_wosize (((intnat)1 << (54-PROFINFO_WIDTH)) - 1)
 #else
 #define Max_wosize ((1 << 22) - 1)
-#endif
+#endif /* ARCH_SIXTYFOUR */
 
 #define Wosize_val(val) (Wosize_hd (Hd_val (val)))
 #define Wosize_op(op) (Wosize_val (op))
@@ -137,6 +162,8 @@ bits  63    10 9     8 7   0
 #define Whsize_hd(hd) (Whsize_wosize (Wosize_hd (hd)))
 #define Bhsize_hp(hp) (Bsize_wsize (Whsize_hp (hp)))
 #define Bhsize_hd(hd) (Bsize_wsize (Whsize_hd (hd)))
+
+#define Profinfo_val(val) (Profinfo_hd (Hd_val (val)))
 
 #ifdef ARCH_BIG_ENDIAN
 #define Tag_val(val) (((unsigned char *) (val)) [-1])
@@ -217,13 +244,20 @@ CAMLextern value caml_hash_variant(char const * tag);
 #define Byte_u(x, i) (((unsigned char *) (x)) [i]) /* Also an l-value. */
 
 /* Abstract things.  Their contents is not traced by the GC; therefore they
-   must not contain any [value].
+   must not contain any [value]. Must have odd number so that headers with
+   this tag cannot be mistaken for pointers (see caml_obj_truncate).
 */
 #define Abstract_tag 251
+#define Data_abstract_val(v) ((void*) Op_val(v))
 
 /* Strings. */
 #define String_tag 252
+#ifdef CAML_SAFE_STRING
+#define String_val(x) ((const char *) Bp_val(x))
+#else
 #define String_val(x) ((char *) Bp_val(x))
+#endif
+#define Bytes_val(x) ((unsigned char *) Bp_val(x))
 CAMLextern mlsize_t caml_string_length (value);   /* size in bytes */
 CAMLextern int caml_string_is_c_safe (value);
   /* true if string contains no '\0' null characters */
@@ -243,12 +277,48 @@ CAMLextern void caml_Store_double_val (value,double);
 
 /* Arrays of floating-point numbers. */
 #define Double_array_tag 254
-#define Double_field(v,i) Double_val((value)((double *)(v) + (i)))
-#define Store_double_field(v,i,d) do{ \
+
+/* The [_flat_field] macros are for [floatarray] values and float-only records.
+*/
+#define Double_flat_field(v,i) Double_val((value)((double *)(v) + (i)))
+#define Store_double_flat_field(v,i,d) do{ \
   mlsize_t caml__temp_i = (i); \
   double caml__temp_d = (d); \
   Store_double_val((value)((double *) (v) + caml__temp_i), caml__temp_d); \
 }while(0)
+
+/* The [_array_field] macros are for [float array]. */
+#ifdef FLAT_FLOAT_ARRAY
+  #define Double_array_field(v,i) Double_flat_field(v,i)
+  #define Store_double_array_field(v,i,d) Store_double_flat_field(v,i,d)
+#else
+  #define Double_array_field(v,i) Double_val (Field(v,i))
+  CAMLextern void caml_Store_double_array_field (value, mlsize_t, double);
+  #define Store_double_array_field(v,i,d) caml_Store_double_array_field (v,i,d)
+#endif
+
+/* The old [_field] macros are for backward compatibility only.
+   They work with [floatarray], float-only records, and [float array]. */
+#ifdef FLAT_FLOAT_ARRAY
+  #define Double_field(v,i) Double_flat_field(v,i)
+  #define Store_double_field(v,i,d) Store_double_flat_field(v,i,d)
+#else
+  static inline double Double_field (value v, mlsize_t i) {
+    if (Tag_val (v) == Double_array_tag){
+      return Double_flat_field (v, i);
+    }else{
+      return Double_array_field (v, i);
+    }
+  }
+  static inline void Store_double_field (value v, mlsize_t i, double d) {
+    if (Tag_val (v) == Double_array_tag){
+      Store_double_flat_field (v, i, d);
+    }else{
+      Store_double_array_field (v, i, d);
+    }
+  }
+#endif /* FLAT_FLOAT_ARRAY */
+
 CAMLextern mlsize_t caml_array_length (value);   /* size in items */
 CAMLextern int caml_is_double_array (value);   /* 0 is false, 1 is true */
 
@@ -303,7 +373,5 @@ CAMLextern value caml_set_oo_id(value obj);
 #ifdef __cplusplus
 }
 #endif
-
-extern intnat caml_stat_top_heap_wsz;
 
 #endif /* CAML_MLVALUES_H */

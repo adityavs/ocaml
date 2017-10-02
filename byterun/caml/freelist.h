@@ -1,21 +1,24 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*             Damien Doligez, projet Para, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*              Damien Doligez, projet Para, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 /* Free lists of heap blocks. */
 
 #ifndef CAML_FREELIST_H
 #define CAML_FREELIST_H
 
+#ifdef CAML_INTERNALS
 
 #include "misc.h"
 #include "mlvalues.h"
@@ -30,5 +33,6 @@ void caml_fl_add_blocks (value);
 void caml_make_free_blocks (value *, mlsize_t wsz, int, int);
 void caml_set_allocation_policy (uintnat);
 
+#endif /* CAML_INTERNALS */
 
 #endif /* CAML_FREELIST_H */

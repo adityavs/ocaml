@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Errors *)
 
@@ -17,6 +20,8 @@ exception Fatal_error
 let fatal_error msg =
   prerr_string ">> Fatal error: "; prerr_endline msg; raise Fatal_error
 
+let fatal_errorf fmt = Format.kasprintf fatal_error fmt
+
 (* Exceptions *)
 
 let try_finally work cleanup =
@@ -24,6 +29,17 @@ let try_finally work cleanup =
   cleanup ();
   result
 ;;
+
+type ref_and_value = R : 'a ref * 'a -> ref_and_value
+
+let protect_refs =
+  let set_refs l = List.iter (fun (R (r, v)) -> r := v) l in
+  fun refs f ->
+    let backup = List.map (fun (R (r, _)) -> R (r, !r)) refs in
+    set_refs refs;
+    match f () with
+    | x           -> set_refs backup; x
+    | exception e -> set_refs backup; raise e
 
 (* List functions *)
 
@@ -42,13 +58,6 @@ let rec for_all2 pred l1 l2 =
   | (hd1::tl1, hd2::tl2) -> pred hd1 hd2 && for_all2 pred tl1 tl2
   | (_, _) -> false
 
-let rec filter_map f = function
-    [] -> []
-  | a :: l ->
-      match f a with
-        None -> filter_map f l
-      | Some b -> b :: filter_map f l
-
 let rec replicate_list elem n =
   if n <= 0 then [] else elem :: replicate_list elem (n-1)
 
@@ -64,21 +73,111 @@ let rec split_last = function
       let (lst, last) = split_last tl in
       (hd :: lst, last)
 
-let rec samelist pred l1 l2 =
-  match (l1, l2) with
-  | ([], []) -> true
-  | (hd1 :: tl1, hd2 :: tl2) -> pred hd1 hd2 && samelist pred tl1 tl2
-  | (_, _) -> false
+module Stdlib = struct
+  module List = struct
+    type 'a t = 'a list
 
-(* Options *)
+    let rec compare cmp l1 l2 =
+      match l1, l2 with
+      | [], [] -> 0
+      | [], _::_ -> -1
+      | _::_, [] -> 1
+      | h1::t1, h2::t2 ->
+        let c = cmp h1 h2 in
+        if c <> 0 then c
+        else compare cmp t1 t2
 
-let may f = function
-    Some x -> f x
-  | None -> ()
+    let rec equal eq l1 l2 =
+      match l1, l2 with
+      | ([], []) -> true
+      | (hd1 :: tl1, hd2 :: tl2) -> eq hd1 hd2 && equal eq tl1 tl2
+      | (_, _) -> false
 
-let may_map f = function
-    Some x -> Some (f x)
-  | None -> None
+    let filter_map f l =
+      let rec aux acc l =
+        match l with
+        | [] -> List.rev acc
+        | h :: t ->
+          match f h with
+          | None -> aux acc t
+          | Some v -> aux (v :: acc) t
+      in
+      aux [] l
+
+    let map2_prefix f l1 l2 =
+      let rec aux acc l1 l2 =
+        match l1, l2 with
+        | [], _ -> (List.rev acc, l2)
+        | _ :: _, [] -> raise (Invalid_argument "map2_prefix")
+        | h1::t1, h2::t2 ->
+          let h = f h1 h2 in
+          aux (h :: acc) t1 t2
+      in
+      aux [] l1 l2
+
+    let some_if_all_elements_are_some l =
+      let rec aux acc l =
+        match l with
+        | [] -> Some (List.rev acc)
+        | None :: _ -> None
+        | Some h :: t -> aux (h :: acc) t
+      in
+      aux [] l
+
+    let split_at n l =
+      let rec aux n acc l =
+        if n = 0
+        then List.rev acc, l
+        else
+          match l with
+          | [] -> raise (Invalid_argument "split_at")
+          | t::q -> aux (n-1) (t::acc) q
+      in
+      aux n [] l
+  end
+
+  module Option = struct
+    type 'a t = 'a option
+
+    let equal eq o1 o2 =
+      match o1, o2 with
+      | None, None -> true
+      | Some e1, Some e2 -> eq e1 e2
+      | _, _ -> false
+
+    let iter f = function
+      | Some x -> f x
+      | None -> ()
+
+    let map f = function
+      | Some x -> Some (f x)
+      | None -> None
+
+    let fold f a b =
+      match a with
+      | None -> b
+      | Some a -> f a b
+
+    let value_default f ~default a =
+      match a with
+      | None -> default
+      | Some a -> f a
+  end
+
+  module Array = struct
+    let exists2 p a1 a2 =
+      let n = Array.length a1 in
+      if Array.length a2 <> n then invalid_arg "Misc.Stdlib.Array.exists2";
+      let rec loop i =
+        if i = n then false
+        else if p (Array.unsafe_get a1 i) (Array.unsafe_get a2 i) then true
+        else loop (succ i) in
+      loop 0
+  end
+end
+
+let may = Stdlib.Option.iter
+let may_map = Stdlib.Option.map
 
 (* File functions *)
 
@@ -124,8 +223,9 @@ let find_in_path_uncap path name =
 
 let remove_file filename =
   try
-    Sys.remove filename
-  with Sys_error msg ->
+    if Sys.file_exists filename
+    then Sys.remove filename
+  with Sys_error _msg ->
     ()
 
 (* Expand a -I option: if it starts with +, make it relative to the standard
@@ -171,6 +271,31 @@ let string_of_file ic =
       (Buffer.add_subbytes b buff 0 n; copy())
   in copy()
 
+let output_to_file_via_temporary ?(mode = [Open_text]) filename fn =
+  let (temp_filename, oc) =
+    Filename.open_temp_file
+       ~mode ~perms:0o666 ~temp_dir:(Filename.dirname filename)
+       (Filename.basename filename) ".tmp" in
+    (* The 0o666 permissions will be modified by the umask.  It's just
+       like what [open_out] and [open_out_bin] do.
+       With temp_dir = dirname filename, we ensure that the returned
+       temp file is in the same directory as filename itself, making
+       it safe to rename temp_filename to filename later.
+       With prefix = basename filename, we are almost certain that
+       the first generated name will be unique.  A fixed prefix
+       would work too but might generate more collisions if many
+       files are being produced simultaneously in the same directory. *)
+  match fn temp_filename oc with
+  | res ->
+      close_out oc;
+      begin try
+        Sys.rename temp_filename filename; res
+      with exn ->
+        remove_file temp_filename; raise exn
+      end
+  | exception exn ->
+      close_out oc; remove_file temp_filename; raise exn
+
 (* Integer operations *)
 
 let rec log2 n =
@@ -188,10 +313,19 @@ let no_overflow_mul a b = b <> 0 && (a * b) / b = a
 let no_overflow_lsl a k =
   0 <= k && k < Sys.word_size && min_int asr k <= a && a <= max_int asr k
 
-(* String operations *)
+module Int_literal_converter = struct
+  (* To convert integer literals, allowing max_int + 1 (PR#4210) *)
+  let cvt_int_aux str neg of_string =
+    if String.length str = 0 || str.[0]= '-'
+    then of_string str
+    else neg (of_string ("-" ^ str))
+  let int s = cvt_int_aux s (~-) int_of_string
+  let int32 s = cvt_int_aux s Int32.neg Int32.of_string
+  let int64 s = cvt_int_aux s Int64.neg Int64.of_string
+  let nativeint s = cvt_int_aux s Nativeint.neg Nativeint.of_string
+end
 
-let chop_extension_if_any fname =
-  try Filename.chop_extension fname with Invalid_argument _ -> fname
+(* String operations *)
 
 let chop_extensions file =
   let dirname = Filename.dirname file and basename = Filename.basename file in
@@ -371,26 +505,10 @@ let did_you_mean ppf get_choices =
   | [] -> ()
   | choices ->
      let rest, last = split_last choices in
-     Format.fprintf ppf "@\nHint: Did you mean %s%s%s?"
+     Format.fprintf ppf "@\nHint: Did you mean %s%s%s?@?"
        (String.concat ", " rest)
        (if rest = [] then "" else " or ")
        last
-
-(* split a string [s] at every char [c], and return the list of sub-strings *)
-let split s c =
-  let len = String.length s in
-  let rec iter pos to_rev =
-    if pos = len then List.rev ("" :: to_rev) else
-      match try
-              Some ( String.index_from s pos c )
-        with Not_found -> None
-      with
-          Some pos2 ->
-            if pos2 = pos then iter (pos+1) ("" :: to_rev) else
-              iter (pos2+1) ((String.sub s pos (pos2-pos)) :: to_rev)
-        | None -> List.rev ( String.sub s pos (len-pos) :: to_rev )
-  in
-  iter 0 []
 
 let cut_at s c =
   let pos = String.index s c in
@@ -470,7 +588,7 @@ module Color = struct
 
   let color_enabled = ref true
 
-  (* either prints the tag of [s] or delegate to [or_else] *)
+  (* either prints the tag of [s] or delegates to [or_else] *)
   let mark_open_tag ~or_else s =
     try
       let style = style_of_tag s in
@@ -492,7 +610,10 @@ module Color = struct
       mark_close_tag=(mark_close_tag ~or_else:functions.mark_close_tag);
     } in
     pp_set_mark_tags ppf true; (* enable tags *)
-    pp_set_formatter_tag_functions ppf functions'
+    pp_set_formatter_tag_functions ppf functions';
+    (* also setup margins *)
+    pp_set_margin ppf (pp_get_margin std_formatter());
+    ()
 
   external isatty : out_channel -> bool = "caml_sys_isatty"
 
@@ -502,6 +623,8 @@ module Color = struct
     term <> "dumb"
     && term <> ""
     && isatty stderr
+
+  type setting = Auto | Always | Never
 
   let setup =
     let first = ref true in (* initialize only once *)
@@ -514,10 +637,96 @@ module Color = struct
         Format.set_mark_tags true;
         List.iter set_color_tag_handling formatter_l;
         color_enabled := (match o with
-          | Clflags.Always -> true
-          | Clflags.Auto -> should_enable_color ()
-          | Clflags.Never -> false
-        )
+            | Some Always -> true
+            | Some Auto -> should_enable_color ()
+            | Some Never -> false
+            | None -> should_enable_color ())
       );
       ()
+end
+
+let normalise_eol s =
+  let b = Buffer.create 80 in
+    for i = 0 to String.length s - 1 do
+      if s.[i] <> '\r' then Buffer.add_char b s.[i]
+    done;
+    Buffer.contents b
+
+let delete_eol_spaces src =
+  let len_src = String.length src in
+  let dst = Bytes.create len_src in
+  let rec loop i_src i_dst =
+    if i_src = len_src then
+      i_dst
+    else
+      match src.[i_src] with
+      | ' ' | '\t' ->
+        loop_spaces 1 (i_src + 1) i_dst
+      | c ->
+        Bytes.set dst i_dst c;
+        loop (i_src + 1) (i_dst + 1)
+  and loop_spaces spaces i_src i_dst =
+    if i_src = len_src then
+      i_dst
+    else
+      match src.[i_src] with
+      | ' ' | '\t' ->
+        loop_spaces (spaces + 1) (i_src + 1) i_dst
+      | '\n' ->
+        Bytes.set dst i_dst '\n';
+        loop (i_src + 1) (i_dst + 1)
+      | _ ->
+        for n = 0 to spaces do
+          Bytes.set dst (i_dst + n) src.[i_src - spaces + n]
+        done;
+        loop (i_src + 1) (i_dst + spaces + 1)
+  in
+  let stop = loop 0 0 in
+  Bytes.sub_string dst 0 stop
+
+type hook_info = {
+  sourcefile : string;
+}
+
+exception HookExnWrapper of
+    {
+      error: exn;
+      hook_name: string;
+      hook_info: hook_info;
+    }
+
+exception HookExn of exn
+
+let raise_direct_hook_exn e = raise (HookExn e)
+
+let fold_hooks list hook_info ast =
+  List.fold_left (fun ast (hook_name,f) ->
+    try
+      f hook_info ast
+    with
+    | HookExn e -> raise e
+    | error -> raise (HookExnWrapper {error; hook_name; hook_info})
+       (* when explicit reraise with backtrace will be available,
+          it should be used here *)
+
+  ) ast (List.sort compare list)
+
+module type HookSig = sig
+  type t
+
+  val add_hook : string -> (hook_info -> t -> t) -> unit
+  val apply_hooks : hook_info -> t -> t
+end
+
+module MakeHooks(M: sig
+    type t
+  end) : HookSig with type t = M.t
+= struct
+
+  type t = M.t
+
+  let hooks = ref []
+  let add_hook name f = hooks := (name, f) :: !hooks
+  let apply_hooks sourcefile intf =
+    fold_hooks !hooks sourcefile intf
 end

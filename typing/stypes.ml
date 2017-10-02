@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*          Damien Doligez, projet Moscova, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 2003 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*           Damien Doligez, projet Moscova, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 2003 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Recording and dumping (partial) type information *)
 
@@ -41,8 +44,8 @@ let get_location ti =
   | Ti_expr e  -> e.exp_loc
   | Ti_class c -> c.cl_loc
   | Ti_mod m   -> m.mod_loc
-  | An_call (l, k) -> l
-  | An_ident (l, s, k) -> l
+  | An_call (l, _k) -> l
+  | An_ident (l, _s, _k) -> l
 ;;
 
 let annotations = ref ([] : annotation list);;
@@ -191,16 +194,14 @@ let get_info () =
 
 let dump filename =
   if !Clflags.annotations then begin
-    let info = get_info () in
-    let pp =
-      match filename with
-          None -> stdout
-        | Some filename -> open_out filename in
-    sort_filter_phrases ();
-    ignore (List.fold_left (print_info pp) Location.none info);
+    let do_dump _temp_filename pp =
+      let info = get_info () in
+      sort_filter_phrases ();
+      ignore (List.fold_left (print_info pp) Location.none info) in
     begin match filename with
-    | None -> ()
-    | Some _ -> close_out pp
+    | None -> do_dump "" stdout
+    | Some filename ->
+        Misc.output_to_file_via_temporary ~mode:[Open_text] filename do_dump
     end;
     phrases := [];
   end else begin

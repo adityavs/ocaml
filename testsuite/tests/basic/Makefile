@@ -1,15 +1,10 @@
-#########################################################################
-#                                                                       #
-#                                 OCaml                                 #
-#                                                                       #
-#                 Xavier Clerc, SED, INRIA Rocquencourt                 #
-#                                                                       #
-#   Copyright 2010 Institut National de Recherche en Informatique et    #
-#   en Automatique.  All rights reserved.  This file is distributed     #
-#   under the terms of the Q Public License version 1.0.                #
-#                                                                       #
-#########################################################################
-
 BASEDIR=../..
 include $(BASEDIR)/makefiles/Makefile.several
 include $(BASEDIR)/makefiles/Makefile.common
+
+# The trigraph.ml test always fails under OpenBSD 6 / i386
+# because of an unrelated warning emitted by the linker called by ocamlopt
+# (see commit log for details).
+# As a temporary workaround, we skip this test.
+SKIP=test $$file = trigraph.ml \
+     && test `uname -m` = i386 && test `uname -s` = OpenBSD

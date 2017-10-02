@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*         Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2014 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*          Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2014 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 
 (** Definitions shared between the 32 and 64 bit Intel backends. *)
@@ -77,6 +80,9 @@ type system =
 val system: system
 val masm: bool
 val windows:bool
+
+(** Whether calls need to go via the PLT. *)
+val use_plt : bool
 
 (** Support for plumbing a binary code emitter *)
 

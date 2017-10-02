@@ -1,19 +1,21 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*          Jerome Vouillon, projet Cristal, INRIA Rocquencourt        *)
-(*          OCaml port by John Malecki and Xavier Leroy                *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*           Jerome Vouillon, projet Cristal, INRIA Rocquencourt          *)
+(*           OCaml port by John Malecki and Xavier Leroy                  *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (******************************* Breakpoints ***************************)
 
-open Primitives
 open Instruct
 
 (*** Debugging. ***)
@@ -34,7 +36,7 @@ val breakpoints_at_pc : int -> int list
 
 (*** Set and remove breakpoints ***)
 
-(* Ensure the current version in installed in current checkpoint. *)
+(* Ensure the current version is installed in current checkpoint. *)
 val update_breakpoints : unit -> unit
 
 (* Execute given function with no breakpoint in current checkpoint. *)

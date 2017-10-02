@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                        Alain Frisch, LexiFi                         *)
-(*                                                                     *)
-(*  Copyright 2012 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                         Alain Frisch, LexiFi                           *)
+(*                                                                        *)
+(*   Copyright 2012 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Helpers to produce Parsetree fragments *)
 
@@ -28,6 +31,17 @@ let with_default_loc l f =
   default_loc := l;
   try let r = f () in default_loc := old; r
   with exn -> default_loc := old; raise exn
+
+module Const = struct
+  let integer ?suffix i = Pconst_integer (i, suffix)
+  let int ?suffix i = integer ?suffix (string_of_int i)
+  let int32 ?(suffix='l') i = integer ~suffix (Int32.to_string i)
+  let int64 ?(suffix='L') i = integer ~suffix (Int64.to_string i)
+  let nativeint ?(suffix='n') i = integer ~suffix (Nativeint.to_string i)
+  let float ?suffix f = Pconst_float (f, suffix)
+  let char c = Pconst_char c
+  let string ?quotation_delimiter s = Pconst_string (s, quotation_delimiter)
+end
 
 module Typ = struct
   let mk ?(loc = !default_loc) ?(attrs = []) d =
@@ -51,6 +65,62 @@ module Typ = struct
     match t.ptyp_desc with
     | Ptyp_poly _ -> t
     | _ -> poly ~loc:t.ptyp_loc [] t (* -> ghost? *)
+
+  let varify_constructors var_names t =
+    let check_variable vl loc v =
+      if List.mem v vl then
+        raise Syntaxerr.(Error(Variable_in_scope(loc,v))) in
+    let var_names = List.map (fun v -> v.txt) var_names in
+    let rec loop t =
+      let desc =
+        match t.ptyp_desc with
+        | Ptyp_any -> Ptyp_any
+        | Ptyp_var x ->
+            check_variable var_names t.ptyp_loc x;
+            Ptyp_var x
+        | Ptyp_arrow (label,core_type,core_type') ->
+            Ptyp_arrow(label, loop core_type, loop core_type')
+        | Ptyp_tuple lst -> Ptyp_tuple (List.map loop lst)
+        | Ptyp_constr( { txt = Longident.Lident s }, [])
+          when List.mem s var_names ->
+            Ptyp_var s
+        | Ptyp_constr(longident, lst) ->
+            Ptyp_constr(longident, List.map loop lst)
+        | Ptyp_object (lst, o) ->
+            Ptyp_object (List.map loop_object_field lst, o)
+        | Ptyp_class (longident, lst) ->
+            Ptyp_class (longident, List.map loop lst)
+        | Ptyp_alias(core_type, string) ->
+            check_variable var_names t.ptyp_loc string;
+            Ptyp_alias(loop core_type, string)
+        | Ptyp_variant(row_field_list, flag, lbl_lst_option) ->
+            Ptyp_variant(List.map loop_row_field row_field_list,
+                         flag, lbl_lst_option)
+        | Ptyp_poly(string_lst, core_type) ->
+          List.iter (fun v ->
+            check_variable var_names t.ptyp_loc v.txt) string_lst;
+            Ptyp_poly(string_lst, loop core_type)
+        | Ptyp_package(longident,lst) ->
+            Ptyp_package(longident,List.map (fun (n,typ) -> (n,loop typ) ) lst)
+        | Ptyp_extension (s, arg) ->
+            Ptyp_extension (s, arg)
+      in
+      {t with ptyp_desc = desc}
+    and loop_row_field  =
+      function
+        | Rtag(label,attrs,flag,lst) ->
+            Rtag(label,attrs,flag,List.map loop lst)
+        | Rinherit t ->
+            Rinherit (loop t)
+    and loop_object_field =
+      function
+        | Otag(label, attrs, t) ->
+            Otag(label, attrs, loop t)
+        | Oinherit t ->
+            Oinherit (loop t)
+    in
+    loop t
+
 end
 
 module Pat = struct
@@ -73,6 +143,7 @@ module Pat = struct
   let type_ ?loc ?attrs a = mk ?loc ?attrs (Ppat_type a)
   let lazy_ ?loc ?attrs a = mk ?loc ?attrs (Ppat_lazy a)
   let unpack ?loc ?attrs a = mk ?loc ?attrs (Ppat_unpack a)
+  let open_ ?loc ?attrs a b = mk ?loc ?attrs (Ppat_open (a, b))
   let exception_ ?loc ?attrs a = mk ?loc ?attrs (Ppat_exception a)
   let extension ?loc ?attrs a = mk ?loc ?attrs (Ppat_extension a)
 end
@@ -108,6 +179,7 @@ module Exp = struct
   let setinstvar ?loc ?attrs a b = mk ?loc ?attrs (Pexp_setinstvar (a, b))
   let override ?loc ?attrs a = mk ?loc ?attrs (Pexp_override a)
   let letmodule ?loc ?attrs a b c= mk ?loc ?attrs (Pexp_letmodule (a, b, c))
+  let letexception ?loc ?attrs a b = mk ?loc ?attrs (Pexp_letexception (a, b))
   let assert_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_assert a)
   let lazy_ ?loc ?attrs a = mk ?loc ?attrs (Pexp_lazy a)
   let poly ?loc ?attrs a b = mk ?loc ?attrs (Pexp_poly (a, b))
@@ -172,9 +244,10 @@ module Sig = struct
   let extension ?loc ?(attrs = []) a = mk ?loc (Psig_extension (a, attrs))
   let attribute ?loc a = mk ?loc (Psig_attribute a)
   let text txt =
+    let f_txt = List.filter (fun ds -> docstring_body ds <> "") txt in
     List.map
       (fun ds -> attribute ~loc:(docstring_loc ds) (text_attr ds))
-      txt
+      f_txt
 end
 
 module Str = struct
@@ -196,9 +269,10 @@ module Str = struct
   let extension ?loc ?(attrs = []) a = mk ?loc (Pstr_extension (a, attrs))
   let attribute ?loc a = mk ?loc (Pstr_attribute a)
   let text txt =
+    let f_txt = List.filter (fun ds -> docstring_body ds <> "") txt in
     List.map
       (fun ds -> attribute ~loc:(docstring_loc ds) (text_attr ds))
-      txt
+      f_txt
 end
 
 module Cl = struct
@@ -217,6 +291,7 @@ module Cl = struct
   let let_ ?loc ?attrs a b c = mk ?loc ?attrs (Pcl_let (a, b, c))
   let constraint_ ?loc ?attrs a b = mk ?loc ?attrs (Pcl_constraint (a, b))
   let extension ?loc ?attrs a = mk ?loc ?attrs (Pcl_extension a)
+  let open_ ?loc ?attrs a b c = mk ?loc ?attrs (Pcl_open (a, b, c))
 end
 
 module Cty = struct
@@ -232,6 +307,7 @@ module Cty = struct
   let signature ?loc ?attrs a = mk ?loc ?attrs (Pcty_signature a)
   let arrow ?loc ?attrs a b c = mk ?loc ?attrs (Pcty_arrow (a, b, c))
   let extension ?loc ?attrs a = mk ?loc ?attrs (Pcty_extension a)
+  let open_ ?loc ?attrs a b c = mk ?loc ?attrs (Pcty_open (a, b, c))
 end
 
 module Ctf = struct
@@ -250,9 +326,10 @@ module Ctf = struct
   let extension ?loc ?attrs a = mk ?loc ?attrs (Pctf_extension a)
   let attribute ?loc a = mk ?loc (Pctf_attribute a)
   let text txt =
-    List.map
+   let f_txt = List.filter (fun ds -> docstring_body ds <> "") txt in
+     List.map
       (fun ds -> attribute ~loc:(docstring_loc ds) (text_attr ds))
-      txt
+      f_txt
 
   let attr d a = {d with pctf_attributes = d.pctf_attributes @ [a]}
 
@@ -275,9 +352,10 @@ module Cf = struct
   let extension ?loc ?attrs a = mk ?loc ?attrs (Pcf_extension a)
   let attribute ?loc a = mk ?loc (Pcf_attribute a)
   let text txt =
+    let f_txt = List.filter (fun ds -> docstring_body ds <> "") txt in
     List.map
       (fun ds -> attribute ~loc:(docstring_loc ds) (text_attr ds))
-      txt
+      f_txt
 
   let virtual_ ct = Cfk_virtual ct
   let concrete o e = Cfk_concrete (o, e)

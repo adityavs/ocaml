@@ -1,15 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*  Pierre Weis and Xavier Leroy, projet Cristal, INRIA Rocquencourt   *)
-(*                                                                     *)
-(*  Copyright 1999 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the GNU Library General Public License, with    *)
-(*  the special exception on linking described in file ../LICENSE.     *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*   Pierre Weis and Xavier Leroy, projet Cristal, INRIA Rocquencourt     *)
+(*                                                                        *)
+(*   Copyright 1999 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Extensible buffers.
 
@@ -83,6 +85,26 @@ val reset : t -> unit
 val add_char : t -> char -> unit
 (** [add_char b c] appends the character [c] at the end of buffer [b]. *)
 
+val add_utf_8_uchar : t -> Uchar.t -> unit
+(** [add_utf_8_uchar b u] appends the {{:https://tools.ietf.org/html/rfc3629}
+    UTF-8} encoding of [u] at the end of buffer [b].
+
+    @since 4.06.0 *)
+
+val add_utf_16le_uchar : t -> Uchar.t -> unit
+(** [add_utf_16le_uchar b u] appends the
+    {{:https://tools.ietf.org/html/rfc2781}UTF-16LE} encoding of [u]
+    at the end of buffer [b].
+
+    @since 4.06.0 *)
+
+val add_utf_16be_uchar : t -> Uchar.t -> unit
+(** [add_utf_16be_uchar b u] appends the
+    {{:https://tools.ietf.org/html/rfc2781}UTF-16BE} encoding of [u]
+    at the end of buffer [b].
+
+    @since 4.06.0 *)
+
 val add_string : t -> string -> unit
 (** [add_string b s] appends the string [s] at the end of buffer [b]. *)
 
@@ -129,3 +151,9 @@ val add_channel : t -> in_channel -> int -> unit
 val output_buffer : out_channel -> t -> unit
 (** [output_buffer oc b] writes the current contents of buffer [b]
    on the output channel [oc]. *)
+
+val truncate : t -> int -> unit
+(** [truncate b len] truncates the length of [b] to [len]
+  Note: the internal byte sequence is not shortened.
+  Raise [Invalid_argument] if [len < 0] or [len > length b].
+  @since 4.05.0 *)

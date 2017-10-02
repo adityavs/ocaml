@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 #include <stdio.h>
 #include <string.h>
@@ -21,10 +25,10 @@
 #include "caml/misc.h"
 #include "caml/mlvalues.h"
 
-static char * parse_sign_and_base(char * p,
-                                  /*out*/ int * base,
-                                  /*out*/ int * signedness,
-                                  /*out*/ int * sign)
+static const char * parse_sign_and_base(const char * p,
+                                        /*out*/ int * base,
+                                        /*out*/ int * signedness,
+                                        /*out*/ int * sign)
 {
   *sign = 1;
   if (*p == '-') {
@@ -67,7 +71,7 @@ static int parse_digit(char c)
 
 static intnat parse_intnat(value s, int nbits, const char *errmsg)
 {
-  char * p;
+  const char * p;
   uintnat res, threshold;
   int sign, base, signedness, d;
 
@@ -501,14 +505,14 @@ CAMLprim value caml_int64_bswap(value v)
 {
   int64_t x = Int64_val(v);
   return caml_copy_int64
-    (((x & 0x00000000000000FFULL) << 56) |
-     ((x & 0x000000000000FF00ULL) << 40) |
-     ((x & 0x0000000000FF0000ULL) << 24) |
-     ((x & 0x00000000FF000000ULL) << 8) |
-     ((x & 0x000000FF00000000ULL) >> 8) |
-     ((x & 0x0000FF0000000000ULL) >> 24) |
-     ((x & 0x00FF000000000000ULL) >> 40) |
-     ((x & 0xFF00000000000000ULL) >> 56));
+    (((x & INT64_LITERAL(0x00000000000000FFU)) << 56) |
+     ((x & INT64_LITERAL(0x000000000000FF00U)) << 40) |
+     ((x & INT64_LITERAL(0x0000000000FF0000U)) << 24) |
+     ((x & INT64_LITERAL(0x00000000FF000000U)) << 8) |
+     ((x & INT64_LITERAL(0x000000FF00000000U)) >> 8) |
+     ((x & INT64_LITERAL(0x0000FF0000000000U)) >> 24) |
+     ((x & INT64_LITERAL(0x00FF000000000000U)) >> 40) |
+     ((x & INT64_LITERAL(0xFF00000000000000U)) >> 56));
 }
 
 CAMLprim value caml_int64_of_int(value v)
@@ -561,7 +565,7 @@ CAMLprim value caml_int64_format(value fmt, value arg)
 
 CAMLprim value caml_int64_of_string(value s)
 {
-  char * p;
+  const char * p;
   uint64_t res, threshold;
   int sign, base, signedness, d;
 

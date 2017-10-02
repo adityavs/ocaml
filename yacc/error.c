@@ -1,14 +1,17 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the Q Public License version 1.0.               */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
 
 /* Based on public-domain code from Berkeley Yacc */
 
@@ -102,24 +105,6 @@ void unterminated_text(int t_lineno, char *t_line, char *t_cptr)
     fprintf(stderr, "File \"%s\", line %d: unmatched %%{\n",
             virtual_input_file_name, t_lineno);
     print_pos(t_line, t_cptr);
-    done(1);
-}
-
-
-void unterminated_union(int u_lineno, char *u_line, char *u_cptr)
-{
-    fprintf(stderr, "File \"%s\", line %d: unterminated %%union declaration\n",
-            virtual_input_file_name, u_lineno);
-    print_pos(u_line, u_cptr);
-    done(1);
-}
-
-
-void over_unionized(char *u_cptr)
-{
-    fprintf(stderr, "File \"%s\", line %d: too many %%union declarations\n",
-            virtual_input_file_name, lineno);
-    print_pos(line, u_cptr);
     done(1);
 }
 
@@ -308,5 +293,13 @@ void polymorphic_entry_point(char *s)
     fprintf(stderr,
             "%s: e - the start symbol `%s' has a polymorphic type\n",
             myname, s);
+    done(1);
+}
+
+void forbidden_conflicts(void)
+{
+    fprintf(stderr,
+            "%s: the grammar has conflicts, but --strict was specified\n",
+            myname);
     done(1);
 }

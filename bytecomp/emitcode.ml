@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Generation of bytecode + relocation information *)
 
@@ -21,6 +24,28 @@ open Opcodes
 open Cmo_format
 
 module StringSet = Set.Make(String)
+
+type error = Not_compatible_32 of (string * string)
+exception Error of error
+
+(* marshal and possibly check 32bit compat *)
+let marshal_to_channel_with_possibly_32bit_compat ~filename ~kind outchan obj =
+  try
+    Marshal.to_channel outchan obj
+      (if !Clflags.bytecode_compatible_32
+       then [Marshal.Compat_32] else [])
+  with Failure _ ->
+    raise (Error (Not_compatible_32 (filename, kind)))
+
+
+let report_error ppf (file, kind) =
+  Format.fprintf ppf "Generated %s %S cannot be used on a 32-bit platform" kind file
+let () =
+  Location.register_error_of_exn
+    (function
+      | Error (Not_compatible_32 info) -> Some (Location.error_of_printer_file report_error info)
+      | _ -> None
+    )
 
 (* Buffering of bytecode *)
 
@@ -362,7 +387,7 @@ let rec emit = function
 
 (* Emission to a file *)
 
-let to_file outchan unit_name objfile code =
+let to_file outchan unit_name objfile ~required_globals code =
   init();
   output_string outchan cmo_magic_number;
   let pos_depl = pos_out outchan in
@@ -389,14 +414,17 @@ let to_file outchan unit_name objfile code =
       cu_imports = Env.imports();
       cu_primitives = List.map Primitive.byte_name
                                !Translmod.primitive_declarations;
-      cu_force_link = false;
+      cu_required_globals = Ident.Set.elements required_globals;
+      cu_force_link = !Clflags.link_everything;
       cu_debug = pos_debug;
       cu_debugsize = size_debug } in
   init();                               (* Free out_buffer and reloc_info *)
   Btype.cleanup_abbrev ();              (* Remove any cached abbreviation
                                            expansion before saving *)
   let pos_compunit = pos_out outchan in
-  output_value outchan compunit;
+  marshal_to_channel_with_possibly_32bit_compat
+    ~filename:objfile ~kind:"bytecode unit"
+    outchan compunit;
   seek_out outchan pos_depl;
   output_binary_int outchan pos_compunit
 

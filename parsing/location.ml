@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Lexing
 
@@ -16,7 +19,7 @@ let absname = ref false
     (* This reference should be in Clflags, but it would create an additional
        dependency and make bootstrapping Camlp4 more difficult. *)
 
-type t = { loc_start: position; loc_end: position; loc_ghost: bool };;
+type t = Warnings.loc = { loc_start: position; loc_end: position; loc_ghost: bool };;
 
 let in_file name =
   let loc = {
@@ -141,7 +144,7 @@ let highlight_dumb ppf lb loc =
     end
   done;
   (* Print character location (useful for Emacs) *)
-  Format.fprintf ppf "Characters %i-%i:@."
+  Format.fprintf ppf "@[<v>Characters %i-%i:@,"
                  loc.loc_start.pos_cnum loc.loc_end.pos_cnum;
   (* Print the input, underlining the location *)
   Format.pp_print_string ppf "  ";
@@ -152,7 +155,7 @@ let highlight_dumb ppf lb loc =
     | '\n' ->
       if !line = !line_start && !line = !line_end then begin
         (* loc is on one line: underline location *)
-        Format.fprintf ppf "@.  ";
+        Format.fprintf ppf "@,  ";
         for _i = !pos_at_bol to loc.loc_start.pos_cnum - 1 do
           Format.pp_print_char ppf ' '
         done;
@@ -161,7 +164,7 @@ let highlight_dumb ppf lb loc =
         done
       end;
       if !line >= !line_start && !line <= !line_end then begin
-        Format.fprintf ppf "@.";
+        Format.fprintf ppf "@,";
         if pos < loc.loc_end.pos_cnum then Format.pp_print_string ppf "  "
       end;
       incr line;
@@ -188,7 +191,8 @@ let highlight_dumb ppf lb loc =
       else if !line > !line_start && !line < !line_end then
         (* intermediate line of multiline loc: print whole line *)
         Format.pp_print_char ppf c
-  done
+  done;
+  Format.fprintf ppf "@]"
 
 (* Highlight the location using one of the supported modes. *)
 
@@ -269,35 +273,59 @@ let print_loc ppf loc =
   end
 ;;
 
-let print ppf loc =
+let default_printer ppf loc =
   setup_colors ();
   if loc.loc_start.pos_fname = "//toplevel//"
   && highlight_locations ppf [loc] then ()
-  else fprintf ppf "@{<loc>%a@}%s@." print_loc loc msg_colon
+  else fprintf ppf "@{<loc>%a@}%s@," print_loc loc msg_colon
 ;;
+
+let printer = ref default_printer
+let print ppf loc = !printer ppf loc
 
 let error_prefix = "Error"
 let warning_prefix = "Warning"
 
-let print_error_prefix ppf () =
+let print_error_prefix ppf =
   setup_colors ();
-  fprintf ppf "@{<error>%s@}:" error_prefix;
-  ()
+  fprintf ppf "@{<error>%s@}" error_prefix;
+;;
+
+let print_compact ppf loc =
+  if loc.loc_start.pos_fname = "//toplevel//"
+  && highlight_locations ppf [loc] then ()
+  else begin
+    let (file, line, startchar) = get_pos_info loc.loc_start in
+    let endchar = loc.loc_end.pos_cnum - loc.loc_start.pos_cnum + startchar in
+    fprintf ppf "%a:%i" print_filename file line;
+    if startchar >= 0 then fprintf ppf ",%i--%i" startchar endchar
+  end
 ;;
 
 let print_error ppf loc =
-  print ppf loc;
-  print_error_prefix ppf ()
+  fprintf ppf "%a%t:" print loc print_error_prefix;
 ;;
 
 let print_error_cur_file ppf () = print_error ppf (in_file !input_name);;
 
 let default_warning_printer loc ppf w =
-  if Warnings.is_active w then begin
+  match Warnings.report w with
+  | `Inactive -> ()
+  | `Active { Warnings. number; message; is_error; sub_locs } ->
     setup_colors ();
+    fprintf ppf "@[<v>";
     print ppf loc;
-    fprintf ppf "@{<warning>%s@} %a@." warning_prefix Warnings.print w
-  end
+    if is_error
+    then
+      fprintf ppf "%t (%s %d): %s@," print_error_prefix
+           (String.uncapitalize_ascii warning_prefix) number message
+    else fprintf ppf "@{<warning>%s@} %d: %s@," warning_prefix number message;
+    List.iter
+      (fun (loc, msg) ->
+         if loc <> none then fprintf ppf "  %a  %s@," print loc msg
+      )
+      sub_locs;
+    fprintf ppf "@]"
 ;;
 
 let warning_printer = ref default_warning_printer ;;
@@ -345,14 +373,14 @@ let pp_ksprintf ?before k fmt =
       k msg)
     ppf fmt
 
+(* Shift the formatter's offset by the length of the error prefix, which
+   is always added by the compiler after the message has been formatted *)
+let print_phanton_error_prefix ppf =
+  Format.pp_print_as ppf (String.length error_prefix + 2 (* ": " *)) ""
+
 let errorf ?(loc = none) ?(sub = []) ?(if_highlight = "") fmt =
   pp_ksprintf
-    (fun msg -> {loc; msg; sub; if_highlight})
-    fmt
-
-let errorf_prefixed ?(loc=none) ?(sub=[]) ?(if_highlight="") fmt =
-  pp_ksprintf
-    ~before:(fun ppf -> fprintf ppf "%a " print_error_prefix ())
+    ~before:print_phanton_error_prefix
     (fun msg -> {loc; msg; sub; if_highlight})
     fmt
 
@@ -363,20 +391,25 @@ let error_of_exn : (exn -> error option) list ref = ref []
 
 let register_error_of_exn f = error_of_exn := f :: !error_of_exn
 
+exception Already_displayed_error = Warnings.Errors
+
 let error_of_exn exn =
-  let rec loop = function
-    | [] -> None
-    | f :: rest ->
-        match f exn with
-        | Some _ as r -> r
-        | None -> loop rest
-  in
-  loop !error_of_exn
+  match exn with
+  | Already_displayed_error -> Some `Already_displayed
+  | _ ->
+     let rec loop = function
+       | [] -> None
+       | f :: rest ->
+          match f exn with
+          | Some error -> Some (`Ok error)
+          | None -> loop rest
+     in
+     loop !error_of_exn
 
 let rec default_error_reporter ppf ({loc; msg; sub; if_highlight} as err) =
   let highlighted =
-    if if_highlight <> "" then
-      let rec collect_locs locs {loc; sub; if_highlight; _} =
+    if if_highlight <> "" && loc.loc_start.pos_fname = "//toplevel//" then
+      let rec collect_locs locs {loc; sub; _} =
         List.fold_left collect_locs (loc :: locs) sub
       in
       let locs = collect_locs [] err in
@@ -387,9 +420,9 @@ let rec default_error_reporter ppf ({loc; msg; sub; if_highlight} as err) =
   if highlighted then
     Format.pp_print_string ppf if_highlight
   else begin
-    print ppf loc;
-    Format.pp_print_string ppf msg;
-    List.iter (Format.fprintf ppf "@\n@[<2>%a@]" default_error_reporter) sub
+    fprintf ppf "@[<v>%a %s" print_error loc msg;
+    List.iter (Format.fprintf ppf "@,@[<2>%a@]" default_error_reporter) sub;
+    fprintf ppf "@]"
   end
 
 let error_reporter = ref default_error_reporter
@@ -399,7 +432,7 @@ let report_error ppf err =
 ;;
 
 let error_of_printer loc print x =
-  errorf_prefixed ~loc "%a@?" print x
+  errorf ~loc "%a@?" print x
 
 let error_of_printer_file print x =
   error_of_printer (in_file !input_name) print x
@@ -408,24 +441,31 @@ let () =
   register_error_of_exn
     (function
       | Sys_error msg ->
-          Some (errorf_prefixed ~loc:(in_file !input_name)
+          Some (errorf ~loc:(in_file !input_name)
                 "I/O error: %s" msg)
-      | Warnings.Errors n ->
+
+      | Misc.HookExnWrapper {error = e; hook_name;
+                             hook_info={Misc.sourcefile}} ->
+          let sub = match error_of_exn e with
+            | None | Some `Already_displayed -> error (Printexc.to_string e)
+            | Some (`Ok err) -> err
+          in
           Some
-            (errorf_prefixed ~loc:(in_file !input_name)
-             "Some fatal warnings were triggered (%d occurrences)" n)
-      | _ ->
-          None
+            (errorf ~loc:(in_file sourcefile)
+               "In hook %S:" hook_name
+               ~sub:[sub])
+      | _ -> None
     )
 
+external reraise : exn -> 'a = "%reraise"
 
 let rec report_exception_rec n ppf exn =
-  try match error_of_exn exn with
-  | Some err ->
-      fprintf ppf "@[%a@]@." report_error err
-  | None -> raise exn
-  with exn when n > 0 ->
-    report_exception_rec (n-1) ppf exn
+  try
+    match error_of_exn exn with
+    | None -> reraise exn
+    | Some `Already_displayed -> ()
+    | Some (`Ok err) -> fprintf ppf "@[%a@]@." report_error err
+  with exn when n > 0 -> report_exception_rec (n-1) ppf exn
 
 let report_exception ppf exn = report_exception_rec 5 ppf exn
 
@@ -440,4 +480,9 @@ let () =
     )
 
 let raise_errorf ?(loc = none) ?(sub = []) ?(if_highlight = "") =
-  pp_ksprintf (fun msg -> raise (Error ({loc; msg; sub; if_highlight})))
+  pp_ksprintf
+    ~before:print_phanton_error_prefix
+    (fun msg -> raise (Error ({loc; msg; sub; if_highlight})))
+
+let deprecated ?(def = none) ?(use = none) loc msg =
+  prerr_warning loc (Warnings.Deprecated (msg, def, use))

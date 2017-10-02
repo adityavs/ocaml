@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*        Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt       *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*         Fabrice Le Fessant, projet Gallium, INRIA Rocquencourt         *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (** Helpers for Intel code generators *)
 
@@ -47,6 +50,7 @@ let ax  = Reg16 RAX
 let rax = Reg64 RAX
 let r10 = Reg64 R10
 let r11 = Reg64 R11
+let r13 = Reg64 R13
 let r14 = Reg64 R14
 let r15 = Reg64 R15
 let rsp = Reg64 RSP

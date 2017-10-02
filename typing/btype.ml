@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(* Xavier Leroy and Jerome Vouillon, projet Cristal, INRIA Rocquencourt*)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*  Xavier Leroy and Jerome Vouillon, projet Cristal, INRIA Rocquencourt  *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Basic operations on core types *)
 
@@ -56,11 +59,40 @@ let newmarkedgenvar () =
 
 let is_Tvar = function {desc=Tvar _} -> true | _ -> false
 let is_Tunivar = function {desc=Tunivar _} -> true | _ -> false
+let is_Tconstr = function {desc=Tconstr _} -> true | _ -> false
 
 let dummy_method = "*dummy method*"
 let default_mty = function
     Some mty -> mty
   | None -> Mty_signature []
+
+(**** Definitions for backtracking ****)
+
+type change =
+    Ctype of type_expr * type_desc
+  | Ccompress of type_expr * type_desc * type_desc
+  | Clevel of type_expr * int
+  | Cname of
+      (Path.t * type_expr list) option ref * (Path.t * type_expr list) option
+  | Crow of row_field option ref * row_field option
+  | Ckind of field_kind option ref * field_kind option
+  | Ccommu of commutable ref * commutable
+  | Cuniv of type_expr option ref * type_expr option
+  | Ctypeset of TypeSet.t ref * TypeSet.t
+
+type changes =
+    Change of change * changes ref
+  | Unchanged
+  | Invalid
+
+let trail = Weak.create 1
+
+let log_change ch =
+  match Weak.get trail 0 with None -> ()
+  | Some r ->
+      let r' = ref Unchanged in
+      r := Change (ch, r');
+      Weak.set trail 0 (Some r')
 
 (**** Representative of a type ****)
 
@@ -69,19 +101,25 @@ let rec field_kind_repr =
     Fvar {contents = Some kind} -> field_kind_repr kind
   | kind                        -> kind
 
-let rec repr =
-  function
-    {desc = Tlink t'} ->
-      (*
-         We do no path compression. Path compression does not seem to
-         improve notably efficiency, and it prevents from changing a
-         [Tlink] into another type (for instance, for undoing a
-         unification).
-      *)
-      repr t'
-  | {desc = Tfield (_, k, _, t')} when field_kind_repr k = Fabsent ->
-      repr t'
-  | t -> t
+let rec repr_link compress t d =
+ function
+   {desc = Tlink t' as d'} ->
+     repr_link true t d' t'
+ | {desc = Tfield (_, k, _, t') as d'} when field_kind_repr k = Fabsent ->
+     repr_link true t d' t'
+ | t' ->
+     if compress then begin
+       log_change (Ccompress (t, t.desc, d)); t.desc <- d
+     end;
+     t'
+
+let repr t =
+  match t.desc with
+   Tlink t' as d ->
+     repr_link false t d t'
+ | Tfield (_, k, _, t') as d when field_kind_repr k = Fabsent ->
+     repr_link false t d t'
+ | _ -> t
 
 let rec commu_repr = function
     Clink r when !r <> Cunknown -> commu_repr !r
@@ -171,27 +209,31 @@ let proxy ty =
 
 (**** Utilities for fixed row private types ****)
 
-let has_constr_row t =
+let row_of_type t = 
   match (repr t).desc with
     Tobject(t,_) ->
-      let rec check_row t =
-        match (repr t).desc with
-          Tfield(_,_,_,t) -> check_row t
-        | Tconstr _ -> true
-        | _ -> false
-      in check_row t
+      let rec get_row t =
+        let t = repr t in
+        match t.desc with
+          Tfield(_,_,_,t) -> get_row t
+        | _ -> t
+      in get_row t
   | Tvariant row ->
-      (match row_more row with {desc=Tconstr _} -> true | _ -> false)
+      row_more row
   | _ ->
-      false
+      t
+
+let has_constr_row t =
+  not (is_Tconstr t) && is_Tconstr (row_of_type t)
 
 let is_row_name s =
   let l = String.length s in
   if l < 4 then false else String.sub s (l-4) 4 = "#row"
 
-let is_constr_row t =
+let is_constr_row ~allow_ident t =
   match t.desc with
-    Tconstr (Path.Pident id, _, _) -> is_row_name (Ident.name id)
+    Tconstr (Path.Pident id, _, _) when allow_ident ->
+      is_row_name (Ident.name id)
   | Tconstr (Path.Pdot (_, s, _), _, _) -> is_row_name s
   | _ -> false
 
@@ -315,7 +357,7 @@ let type_iterators =
     it.it_path ctd.clty_path
   and it_module_type it = function
       Mty_ident p
-    | Mty_alias p -> it.it_path p
+    | Mty_alias(_, p) -> it.it_path p
     | Mty_signature sg -> it.it_signature it sg
     | Mty_functor (_, mto, mt) ->
         may (it.it_module_type it) mto;
@@ -346,7 +388,7 @@ let type_iterators =
     | Tvariant row ->
         may (fun (p,_) -> it.it_path p) (row_repr row).row_name
     | _ -> ()
-  and it_path p = ()
+  and it_path _p = ()
   in
   { it_path; it_type_expr = it_do_type_expr; it_do_type_expr;
     it_type_kind; it_class_type; it_module_type;
@@ -399,12 +441,12 @@ let rec copy_type_desc ?(keep_names=false) f = function
   | Tobject(ty, {contents = Some (p, tl)})
                         -> Tobject (f ty, ref (Some(p, List.map f tl)))
   | Tobject (ty, _)     -> Tobject (f ty, ref None)
-  | Tvariant row        -> assert false (* too ambiguous *)
+  | Tvariant _          -> assert false (* too ambiguous *)
   | Tfield (p, k, ty1, ty2) -> (* the kind is kept shared *)
       Tfield (p, field_kind_repr k, f ty1, f ty2)
   | Tnil                -> Tnil
   | Tlink ty            -> copy_type_desc f ty.desc
-  | Tsubst ty           -> assert false
+  | Tsubst _            -> assert false
   | Tunivar _ as ty     -> ty (* always keep the name *)
   | Tpoly (ty, tyl)     ->
       let tyl = List.map (fun x -> norm_univar (f x)) tyl in
@@ -473,7 +515,7 @@ let rec unmark_type ty =
   end
 
 let unmark_iterators =
-  let it_type_expr it ty = unmark_type ty in
+  let it_type_expr _it ty = unmark_type ty in
   {type_iterators with it_type_expr}
 
 let unmark_type_decl decl =
@@ -486,7 +528,7 @@ let unmark_extension_constructor ext =
 
 let unmark_class_signature sign =
   unmark_type sign.csig_self;
-  Vars.iter (fun l (m, v, t) -> unmark_type t) sign.csig_vars
+  Vars.iter (fun _l (_m, _v, t) -> unmark_type t) sign.csig_vars
 
 let unmark_class_type cty =
   unmark_iterators.it_class_type unmark_iterators cty
@@ -497,10 +539,16 @@ let unmark_class_type cty =
                   (*******************************************)
 
 (* Search whether the expansion has been memorized. *)
+
+let lte_public p1 p2 =  (* Private <= Public *)
+  match p1, p2 with
+  | Private, _ | _, Public -> true
+  | Public, Private -> false
+
 let rec find_expans priv p1 = function
     Mnil -> None
-  | Mcons (priv', p2, ty0, ty, _)
-    when priv' >= priv && Path.same p1 p2 -> Some ty
+  | Mcons (priv', p2, _ty0, ty, _)
+    when lte_public priv priv' && Path.same p1 p2 -> Some ty
   | Mcons (_, _, _, _, rem)   -> find_expans priv p1 rem
   | Mlink {contents = rem} -> find_expans priv p1 rem
 
@@ -587,19 +635,9 @@ let extract_label l ls = extract_label_aux [] l ls
                   (*  Utilities for backtracking    *)
                   (**********************************)
 
-type change =
-    Ctype of type_expr * type_desc
-  | Clevel of type_expr * int
-  | Cname of
-      (Path.t * type_expr list) option ref * (Path.t * type_expr list) option
-  | Crow of row_field option ref * row_field option
-  | Ckind of field_kind option ref * field_kind option
-  | Ccommu of commutable ref * commutable
-  | Cuniv of type_expr option ref * type_expr option
-  | Ctypeset of TypeSet.t ref * TypeSet.t
-
 let undo_change = function
     Ctype  (ty, desc) -> ty.desc <- desc
+  | Ccompress  (ty, desc, _) -> ty.desc <- desc
   | Clevel (ty, level) -> ty.level <- level
   | Cname  (r, v) -> r := v
   | Crow   (r, v) -> r := v
@@ -608,22 +646,8 @@ let undo_change = function
   | Cuniv  (r, v) -> r := v
   | Ctypeset (r, v) -> r := v
 
-type changes =
-    Change of change * changes ref
-  | Unchanged
-  | Invalid
-
 type snapshot = changes ref * int
-
-let trail = Weak.create 1
 let last_snapshot = ref 0
-
-let log_change ch =
-  match Weak.get trail 0 with None -> ()
-  | Some r ->
-      let r' = ref Unchanged in
-      r := Change (ch, r');
-      Weak.set trail 0 (Some r')
 
 let log_type ty =
   if ty.id <= !last_snapshot then log_change (Ctype (ty, ty.desc))
@@ -689,3 +713,25 @@ let backtrack (changes, old) =
       changes := Unchanged;
       last_snapshot := old;
       Weak.set trail 0 (Some changes)
+
+let rec rev_compress_log log r =
+  match !r with
+    Unchanged | Invalid ->
+      log
+  | Change (Ccompress _, next) ->
+      rev_compress_log (r::log) next
+  | Change (_, next) ->
+      rev_compress_log log next
+
+let undo_compress (changes, _old) =
+  match !changes with
+    Unchanged
+  | Invalid -> ()
+  | Change _ ->
+      let log = rev_compress_log [] changes in
+      List.iter
+        (fun r -> match !r with
+          Change (Ccompress (ty, desc, d), next) when ty.desc == d ->
+            ty.desc <- desc; r := !next
+        | _ -> ())
+        log

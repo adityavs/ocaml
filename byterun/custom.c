@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*         Manuel Serrano and Xavier Leroy, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 2000 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*          Manuel Serrano and Xavier Leroy, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 2000 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 #include <string.h>
 
@@ -32,13 +36,9 @@ CAMLexport value caml_alloc_custom(struct custom_operations * ops,
   if (wosize <= Max_young_wosize) {
     result = caml_alloc_small(wosize, Custom_tag);
     Custom_ops_val(result) = ops;
-    if (ops->finalize != NULL) {
-      /* Remembered that the block has a finalizer */
-      if (caml_finalize_table.ptr >= caml_finalize_table.limit){
-        CAMLassert (caml_finalize_table.ptr == caml_finalize_table.limit);
-        caml_realloc_ref_table (&caml_finalize_table);
-      }
-      *caml_finalize_table.ptr++ = (value *)result;
+    if (ops->finalize != NULL || mem != 0) {
+      /* Remember that the block needs processing after minor GC. */
+      add_to_custom_table (&caml_custom_table, result, mem, max);
     }
   } else {
     result = caml_alloc_shr(wosize, Custom_tag);
@@ -60,8 +60,8 @@ CAMLexport void caml_register_custom_operations(struct custom_operations * ops)
 {
   struct custom_operations_list * l =
     caml_stat_alloc(sizeof(struct custom_operations_list));
-  Assert(ops->identifier != NULL);
-  Assert(ops->deserialize != NULL);
+  CAMLassert(ops->identifier != NULL);
+  CAMLassert(ops->deserialize != NULL);
   l->ops = ops;
   l->next = custom_ops_table;
   custom_ops_table = l;
@@ -100,11 +100,13 @@ struct custom_operations * caml_final_custom_operations(final_fun fn)
 
 extern struct custom_operations caml_int32_ops,
                                 caml_nativeint_ops,
-                                caml_int64_ops;
+                                caml_int64_ops,
+                                caml_ba_ops;
 
 void caml_init_custom_operations(void)
 {
   caml_register_custom_operations(&caml_int32_ops);
   caml_register_custom_operations(&caml_nativeint_ops);
   caml_register_custom_operations(&caml_int64_ops);
+  caml_register_custom_operations(&caml_ba_ops);
 }

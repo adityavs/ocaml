@@ -1,15 +1,19 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../LICENSE.     */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 /* To initialize and resize the stacks */
 
@@ -39,7 +43,8 @@ void caml_init_stack (uintnat initial_max_size)
   caml_trapsp = caml_stack_high;
   caml_trap_barrier = caml_stack_high + 1;
   caml_max_stack_size = initial_max_size;
-  caml_gc_message (0x08, "Initial stack limit: %luk bytes\n",
+  caml_gc_message (0x08, "Initial stack limit: %"
+                   ARCH_INTNAT_PRINTF_FORMAT "uk bytes\n",
                    caml_max_stack_size / 1024 * sizeof (value));
 }
 
@@ -49,7 +54,7 @@ void caml_realloc_stack(asize_t required_space)
   value * new_low, * new_high, * new_sp;
   value * p;
 
-  Assert(caml_extern_sp >= caml_stack_low);
+  CAMLassert(caml_extern_sp >= caml_stack_low);
   size = caml_stack_high - caml_stack_low;
   do {
     if (size >= caml_max_stack_size) caml_raise_stack_overflow();
@@ -95,7 +100,8 @@ void caml_change_max_stack_size (uintnat new_max_size)
 
   if (new_max_size < size) new_max_size = size;
   if (new_max_size != caml_max_stack_size){
-    caml_gc_message (0x08, "Changing stack limit to %luk bytes\n",
+    caml_gc_message (0x08, "Changing stack limit to %"
+                     ARCH_INTNAT_PRINTF_FORMAT "uk bytes\n",
                      new_max_size * sizeof (value) / 1024);
   }
   caml_max_stack_size = new_max_size;

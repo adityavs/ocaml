@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                             OCamldoc                                *)
-(*                                                                     *)
-(*            Maxence Guesdon, projet Cristal, INRIA Rocquencourt      *)
-(*                                                                     *)
-(*  Copyright 2001 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Maxence Guesdon, projet Cristal, INRIA Rocquencourt        *)
+(*                                                                        *)
+(*   Copyright 2001 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Format
 
@@ -43,15 +46,15 @@ exception Use_code of string
 
 (** Return the given module type where methods and vals have been removed
    from the signatures. Used when we don't want to print a too long module type.
-   @param code when the code is given, we raise the [Use_code] exception is we
-   encouter a signature, to that the calling function can use the code rather
+   @param code when the code is given, we raise the [Use_code] exception if we
+   encounter a signature, so that the calling function can use the code rather
    than the "emptied" type.
 *)
 let simpl_module_type ?code t =
   let rec iter t =
     match t with
-      Types.Mty_ident p -> t
-    | Types.Mty_alias p -> t
+      Types.Mty_ident _
+    | Types.Mty_alias(_, _) -> t
     | Types.Mty_signature _ ->
         (
          match code with
@@ -76,9 +79,9 @@ let string_of_module_type ?code ?(complete=false) t =
 let simpl_class_type t =
   let rec iter t =
     match t with
-      Types.Cty_constr (p,texp_list,ct) -> t
+      Types.Cty_constr _ -> t
     | Types.Cty_signature cs ->
-        (* we delete vals and methods in order to not print them when 
+        (* we delete vals and methods in order to not print them when
            displaying the type *)
         let tnil = { Types.desc = Types.Tnil ; Types.level = 0; Types.id = 0 } in
         Types.Cty_signature { Types.csig_self = { cs.Types.csig_self with

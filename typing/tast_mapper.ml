@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*                       Alain Frisch, LexiFi                          *)
-(*                                                                     *)
-(*  Copyright 2015 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*                        Alain Frisch, LexiFi                            *)
+(*                                                                        *)
+(*   Copyright 2015 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 open Asttypes
 open Typedtree
@@ -44,6 +47,7 @@ type mapper =
     package_type: mapper -> package_type -> package_type;
     pat: mapper -> pattern -> pattern;
     row_field: mapper -> row_field -> row_field;
+    object_field: mapper -> object_field -> object_field;
     signature: mapper -> signature -> signature;
     signature_item: mapper -> signature_item -> signature_item;
     structure: mapper -> structure -> structure;
@@ -183,6 +187,7 @@ let pat sub x =
   let extra = function
     | Tpat_type _
     | Tpat_unpack as d -> d
+    | Tpat_open (path,loc,env) ->  Tpat_open (path, loc, sub.env sub env)
     | Tpat_constraint ct -> Tpat_constraint (sub.typ sub ct)
   in
   let pat_env = sub.env sub x.pat_env in
@@ -226,12 +231,13 @@ let expr sub x =
     | Texp_let (rec_flag, list, exp) ->
         let (rec_flag, list) = sub.value_bindings sub (rec_flag, list) in
         Texp_let (rec_flag, list, sub.expr sub exp)
-    | Texp_function (l, cases, p) ->
-        Texp_function (l, sub.cases sub cases, p)
+    | Texp_function { arg_label; param; cases; partial; } ->
+        Texp_function { arg_label; param; cases = sub.cases sub cases;
+          partial; }
     | Texp_apply (exp, list) ->
         Texp_apply (
           sub.expr sub exp,
-          List.map (tuple3 id (opt (sub.expr sub)) id) list
+          List.map (tuple2 id (opt (sub.expr sub))) list
         )
     | Texp_match (exp, cases, exn_cases, p) ->
         Texp_match (
@@ -251,11 +257,17 @@ let expr sub x =
         Texp_construct (lid, cd, List.map (sub.expr sub) args)
     | Texp_variant (l, expo) ->
         Texp_variant (l, opt (sub.expr sub) expo)
-    | Texp_record (list, expo) ->
-        Texp_record (
-          List.map (tuple3 id id (sub.expr sub)) list,
-          opt (sub.expr sub) expo
-        )
+    | Texp_record { fields; representation; extended_expression } ->
+        let fields = Array.map (function
+            | label, Kept t -> label, Kept t
+            | label, Overridden (lid, exp) ->
+                label, Overridden (lid, sub.expr sub exp))
+            fields
+        in
+        Texp_record {
+          fields; representation;
+          extended_expression = opt (sub.expr sub) extended_expression;
+        }
     | Texp_field (exp, lid, ld) ->
         Texp_field (sub.expr sub exp, lid, ld)
     | Texp_setfield (exp1, lid, ld, exp2) ->
@@ -320,6 +332,11 @@ let expr sub x =
           sub.module_expr sub mexpr,
           sub.expr sub exp
         )
+    | Texp_letexception (cd, exp) ->
+        Texp_letexception (
+          sub.extension_constructor sub cd,
+          sub.expr sub exp
+        )
     | Texp_assert exp ->
         Texp_assert (sub.expr sub exp)
     | Texp_lazy exp ->
@@ -330,6 +347,8 @@ let expr sub x =
         Texp_pack (sub.module_expr sub mexpr)
     | Texp_unreachable ->
         Texp_unreachable
+    | Texp_extension_constructor _ as e ->
+        e
   in
   {x with exp_extra; exp_desc; exp_env}
 
@@ -489,7 +508,7 @@ let class_expr sub x =
     | Tcl_apply (cl, args) ->
         Tcl_apply (
           sub.class_expr sub cl,
-          List.map (tuple3 id (opt (sub.expr sub)) id) args
+          List.map (tuple2 id (opt (sub.expr sub))) args
         )
     | Tcl_let (rec_flag, value_bindings, ivars, cl) ->
         let (rec_flag, value_bindings) =
@@ -503,6 +522,8 @@ let class_expr sub x =
         )
     | Tcl_ident (path, lid, tyl) ->
         Tcl_ident (path, lid, List.map (sub.typ sub) tyl)
+    | Tcl_open (ovf, p, lid, env, e) ->
+        Tcl_open (ovf, p, lid, sub.env sub env, sub.class_expr sub e)
   in
   {x with cl_desc; cl_env}
 
@@ -523,6 +544,8 @@ let class_type sub x =
            sub.typ sub ct,
            sub.class_type sub cl
           )
+    | Tcty_open (ovf, p, lid, env, e) ->
+        Tcty_open (ovf, p, lid, sub.env sub env, sub.class_type sub e)
   in
   {x with cltyp_desc; cltyp_env}
 
@@ -558,10 +581,7 @@ let typ sub x =
     | Ttyp_constr (path, lid, list) ->
         Ttyp_constr (path, lid, List.map (sub.typ sub) list)
     | Ttyp_object (list, closed) ->
-        Ttyp_object (
-          List.map (tuple3 id id (sub.typ sub)) list,
-          closed
-        )
+        Ttyp_object ((List.map (sub.object_field sub) list), closed)
     | Ttyp_class (path, lid, list) ->
         Ttyp_class
           (path,
@@ -588,6 +608,11 @@ let row_field sub = function
   | Ttag (label, attrs, b, list) ->
       Ttag (label, attrs, b, List.map (sub.typ sub) list)
   | Tinherit ct -> Tinherit (sub.typ sub ct)
+
+let object_field sub = function
+  | OTtag (label, attrs, ct) ->
+      OTtag (label, attrs, (sub.typ sub ct))
+  | OTinherit ct -> OTinherit (sub.typ sub ct)
 
 let class_field_kind sub = function
   | Tcfk_virtual ct -> Tcfk_virtual (sub.typ sub ct)
@@ -658,6 +683,7 @@ let default =
     package_type;
     pat;
     row_field;
+    object_field;
     signature;
     signature_item;
     structure;

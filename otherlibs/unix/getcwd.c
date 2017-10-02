@@ -1,19 +1,24 @@
-/***********************************************************************/
-/*                                                                     */
-/*                                OCaml                                */
-/*                                                                     */
-/*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         */
-/*                                                                     */
-/*  Copyright 1996 Institut National de Recherche en Informatique et   */
-/*  en Automatique.  All rights reserved.  This file is distributed    */
-/*  under the terms of the GNU Library General Public License, with    */
-/*  the special exception on linking described in file ../../LICENSE.  */
-/*                                                                     */
-/***********************************************************************/
+/**************************************************************************/
+/*                                                                        */
+/*                                 OCaml                                  */
+/*                                                                        */
+/*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           */
+/*                                                                        */
+/*   Copyright 1996 Institut National de Recherche en Informatique et     */
+/*     en Automatique.                                                    */
+/*                                                                        */
+/*   All rights reserved.  This file is distributed under the terms of    */
+/*   the GNU Lesser General Public License version 2.1, with the          */
+/*   special exception on linking described in the file LICENSE.          */
+/*                                                                        */
+/**************************************************************************/
+
+#define CAML_INTERNALS
 
 #include <caml/mlvalues.h>
 #include <caml/alloc.h>
 #include <caml/fail.h>
+#include <caml/osdeps.h>
 #include "unixsupport.h"
 
 #if !defined (_WIN32) && !macintosh
@@ -32,25 +37,16 @@
 
 CAMLprim value unix_getcwd(value unit)
 {
-  char buff[PATH_MAX];
-  if (getcwd(buff, sizeof(buff)) == 0) uerror("getcwd", Nothing);
-  return copy_string(buff);
-}
-
-#else
-#ifdef HAS_GETWD
-
-CAMLprim value unix_getcwd(value unit)
-{
-  char buff[PATH_MAX];
-  if (getwd(buff) == 0) uerror("getcwd", copy_string(buff));
-  return copy_string(buff);
+  char_os buff[PATH_MAX];
+  char_os * ret;
+  ret = getcwd_os(buff, sizeof(buff)/sizeof(*buff));
+  if (ret == 0) uerror("getcwd", Nothing);
+  return caml_copy_string_of_os(buff);
 }
 
 #else
 
 CAMLprim value unix_getcwd(value unit)
-{ invalid_argument("getcwd not implemented"); }
+{ caml_invalid_argument("getcwd not implemented"); }
 
-#endif
 #endif

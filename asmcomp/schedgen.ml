@@ -1,14 +1,17 @@
-(***********************************************************************)
-(*                                                                     *)
-(*                                OCaml                                *)
-(*                                                                     *)
-(*            Xavier Leroy, projet Cristal, INRIA Rocquencourt         *)
-(*                                                                     *)
-(*  Copyright 1996 Institut National de Recherche en Informatique et   *)
-(*  en Automatique.  All rights reserved.  This file is distributed    *)
-(*  under the terms of the Q Public License version 1.0.               *)
-(*                                                                     *)
-(***********************************************************************)
+(**************************************************************************)
+(*                                                                        *)
+(*                                 OCaml                                  *)
+(*                                                                        *)
+(*             Xavier Leroy, projet Cristal, INRIA Rocquencourt           *)
+(*                                                                        *)
+(*   Copyright 1996 Institut National de Recherche en Informatique et     *)
+(*     en Automatique.                                                    *)
+(*                                                                        *)
+(*   All rights reserved.  This file is distributed under the terms of    *)
+(*   the GNU Lesser General Public License version 2.1, with the          *)
+(*   special exception on linking described in the file LICENSE.          *)
+(*                                                                        *)
+(**************************************************************************)
 
 (* Instruction scheduling *)
 
@@ -111,7 +114,7 @@ let rec longest_path critical_outputs node =
       [] ->
         node.length <-
           if is_critical critical_outputs node.instr.res
-          || node.instr.desc = Lreloadretaddr (* alway critical *)
+          || node.instr.desc = Lreloadretaddr (* always critical *)
           then node.delay
           else 0
     | sons ->
@@ -145,9 +148,9 @@ val mutable trywith_nesting = 0
    that terminate a basic block. *)
 
 method oper_in_basic_block = function
-    Icall_ind -> false
+    Icall_ind _ -> false
   | Icall_imm _ -> false
-  | Itailcall_ind -> false
+  | Itailcall_ind _ -> false
   | Itailcall_imm _ -> false
   | Iextcall _ -> false
   | Istackoffset _ -> false
@@ -182,8 +185,8 @@ method is_load = function
   | _ -> false
 
 method is_checkbound = function
-    Iintop Icheckbound -> true
-  | Iintop_imm(Icheckbound, _) -> true
+    Iintop (Icheckbound _) -> true
+  | Iintop_imm(Icheckbound _, _) -> true
   | _ -> false
 
 method private instr_is_store instr =
@@ -334,7 +337,7 @@ method private reschedule ready_queue date cont =
         (* Remove node from queue *)
         let new_queue = ref (remove_instr node ready_queue) in
         (* Update the start date and number of ancestors emitted of
-           all descendents of this node. Enter those that become ready
+           all descendants of this node. Enter those that become ready
            in the queue. *)
         let issue_cycles = self#instr_issue_cycles node.instr in
         List.iter
@@ -372,7 +375,7 @@ method schedule_fundecl f =
     else begin
       let critical_outputs =
         match i.desc with
-          Lop(Icall_ind | Itailcall_ind) -> [| i.arg.(0) |]
+          Lop(Icall_ind _ | Itailcall_ind _) -> [| i.arg.(0) |]
         | Lop(Icall_imm _ | Itailcall_imm _ | Iextcall _) -> [||]
         | Lreturn -> [||]
         | _ -> i.arg in
@@ -386,7 +389,9 @@ method schedule_fundecl f =
     { fun_name = f.fun_name;
       fun_body = new_body;
       fun_fast = f.fun_fast;
-      fun_dbg  = f.fun_dbg }
+      fun_dbg  = f.fun_dbg;
+      fun_spacetime_shape = f.fun_spacetime_shape;
+    }
   end else
     f
 
